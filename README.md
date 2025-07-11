@@ -16,7 +16,3 @@ This project integrates with an Oracle database, executes background tasks using
 - **Python** with Flask, Celery, and APScheduler
 - **Redis** (for Celery queue management)
 - **Grafana** for monitoring
-
-## Setup
-
-Follow these steps to set up the project:
