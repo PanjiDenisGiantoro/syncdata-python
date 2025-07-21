@@ -75,10 +75,10 @@ def p_get_job_cnote_audit(p_cnote):
           '' CASHLESS_HOVER_DATE,
           '' CASHLESS_SELLER_ID,
           '' CASHLESS_CUST_ID,
-          F_GET_MANIFEST_STATUS(CNOTE_NO,'3') MFCNOTE_INB_DATE,
-          F_GET_MANIFEST_STATUS(CNOTE_NO,'1') MFCNOTE_OUTB_NO,
+          F_GET_MANIFEST_STATUS_NEW(CNOTE_NO,'3') MFCNOTE_INB_DATE,
+          F_GET_MANIFEST_STATUS_NEW(CNOTE_NO,'1') MFCNOTE_OUTB_NO,
           null MFCNOTE_OUTB_DATE,
-          F_GET_MANIFEST_STATUS(CNOTE_NO,'2') MFCNOTE_TRANSIT_NO,
+          F_GET_MANIFEST_STATUS_NEW(CNOTE_NO,'2') MFCNOTE_TRANSIT_NO,
           null MFCNOTE_TRANSIT_DATE,
           '' HOMI_NO,
           '' HOMI_DATE,
@@ -736,7 +736,6 @@ def p_get_job_cnote_audit(p_cnote):
                                 "courier_id": row[76],
                                 "courier_name": row[77]
                             })
-
                     else:
                         # Update the record in T_CNOTE_AUD_2021
                         update_query_2021 = """

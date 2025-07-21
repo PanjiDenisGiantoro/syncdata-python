@@ -44,3 +44,7 @@ class Config:
     DB_USER_TRAINING = os.getenv('DB_USER_TRAINING')
     DB_PASSWORD_TRAINING = os.getenv('DB_PASSWORD_TRAINING')
     DB_DSN_TRAINING = os.getenv('DB_DSN_TRAINING')
+
+    DB_USER_JNE = os.getenv('DB_USER_JNE')
+    DB_PASSWORD_JNE = os.getenv('DB_PASSWORD_JNE')
+    DB_DSN_JNE = os.getenv('DB_DSN_JNE')

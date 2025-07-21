@@ -20,7 +20,7 @@ def p_sync_cnote_upd_process(p_cnote):
             cursor.close()
 
             if cnote_data:
-                print(f"Found CNOTE data: {cnote_data}")
+                # print(f"Found CNOTE data: {cnote_data}")
 
                 # Step 2: Merge the data into the billing database
                 connection_billing = get_oracle_connection_billing()  # Using the DB connection to Billing

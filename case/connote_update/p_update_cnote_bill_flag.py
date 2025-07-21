@@ -19,14 +19,14 @@ def p_update_cnote_bill_flag(p_cnote):
             count = cursor.fetchone()[0]  # Fetch the count result
 
             if count == 1:
-                print(f"Found exactly one CNOTE data for {p_cnote}. Proceeding with update.")
+                print(f"Found {p_cnote}. with update.")
 
                 # Step 2: Update the BILL_FLAG to 'Y' for the given CNOTE_NO in the CONNOTE_UPDATE table
                 connection_updatedbrbn = get_oracle_connection_billing()  # Using the DB connection to Billing
                 if connection_updatedbrbn:
                     cursor_updatedbrnm = connection_updatedbrbn.cursor()
                     update_query = f"""
-                    UPDATE JNE.CONNOTE_UPDATE@DBRBN
+                    UPDATE REPJNE.CONNOTE_UPDATE
                     SET BILL_FLAG = 'Y'
                     WHERE CNOTE_NO = :p_cnote
                     """

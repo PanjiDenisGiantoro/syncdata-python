@@ -1,8 +1,8 @@
 import logging
-from flask import Flask, jsonify
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from controller import get_cnote_numbers  # Import the route function
+
+from flask import Flask, jsonify, request
+from controller import get_cnote_numbers   # Import the route function
+from controller import get_moda
 import threading
 import time  # Import time module for generating unique IDs
 from db import get_oracle_connection_billing
@@ -21,11 +21,8 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Menyimpan instance scheduler secara global
-scheduler = None
-
-
 # Fungsi untuk memanggil task atau API untuk mendapatkan CNOTE Numbers
+
 def scheduled_task():
     logger.info("Scheduled task is running...")  # Logging untuk task scheduler
     try:
@@ -35,47 +32,10 @@ def scheduled_task():
     except Exception as e:
         logger.error(f"Error occurred while running the task: {str(e)}")
 
-
-# Scheduler setup
-def start_scheduler():
-    global scheduler
-    logger.info("Starting scheduler...")  # Logging saat scheduler dimulai
-    scheduler = BackgroundScheduler()
-
-    # Menghasilkan ID unik dengan waktu saat job dijadwalkan
-    unique_job_id = f"get_cnote_job_{int(time.time())}"  # Menambahkan timestamp untuk ID unik
-
-    scheduler.add_job(
-        func=scheduled_task,
-        trigger=IntervalTrigger(minutes=2),  # Menjadwalkan setiap 2 menit
-        id=unique_job_id,  # ID job unik
-        name='Get CNOTE Numbers every 2 minutes',  # Nama job
-        replace_existing=True
-    )
-    scheduler.start()
-    logger.info(f"Scheduler started successfully with job ID: {unique_job_id}")
-
-
-# Endpoint untuk memeriksa status scheduler
+# Endpoint untuk memeriksa status scheduler (dummy, biar tidak error)
 @app.route("/scheduler_status", methods=["GET"])
 def scheduler_status():
-    if scheduler is None:
-        return jsonify({
-            "scheduler_status": "not initialized",
-            "jobs": []
-        }), 500
-
-    scheduler_running = False
-    job_ids = []
-    if scheduler.get_jobs():
-        scheduler_running = True
-        job_ids = [job.id for job in scheduler.get_jobs()]
-
-    return jsonify({
-        "scheduler_status": "running" if scheduler_running else "idle",
-        "jobs": job_ids
-    })
-
+    return jsonify({"scheduler_status": "not used"})
 
 # Home route for testing if Flask is up and running
 @app.route("/", methods=["GET"])
@@ -91,7 +51,6 @@ def test_connection_billing():
     else:
         return jsonify({"message": "Connection to Billing failed!"}), 500
 
-
 # The route for getting CNOTE numbers
 @app.route("/get_cnote_numbers", methods=["GET"])
 def get_cnote_numbers_route():
@@ -102,15 +61,30 @@ def get_cnote_numbers_route():
     except Exception as e:
         return jsonify({"message": f"Error occurred: {str(e)}"}), 500
 
+@app.route("/get_moda", methods=["GET"])
+def get_moda_route():
+    p_date = request.args.get('p_date')  # Dapatkan parameter p_date dari query string
+    if p_date:
+        try:
+            return get_moda(p_date)  # Panggil fungsi yang ada pada controller
+        except Exception as e:
+            return jsonify({"message": f"Error occurred: {str(e)}"}), 500
+    else:
+        return jsonify({"message": "p_date parameter is required."}), 400
 
-# Menjalankan scheduler di background
+# Menjalankan scheduled_task satu kali di background saat start
+
+def run_once_job():
+    logger.info("Running scheduled_task once in background thread...")
+    thread = threading.Thread(target=scheduled_task)
+    thread.start()
+    logger.info("Job started.")
+
+# Menjalankan Flask app
+
 def run_flask_app():
-    app.run(debug=True, use_reloader=False)  # use_reloader=False agar scheduler tidak jalan dua kali
-
+    app.run(debug=False, use_reloader=False)  # use_reloader=False agar scheduler tidak jalan dua kali
 
 if __name__ == "__main__":
-    # Memulai scheduler di thread terpisah
-    scheduler_thread = threading.Thread(target=start_scheduler)
-    scheduler_thread.start()
-    # Menjalankan Flask app
+    run_once_job()
     run_flask_app()

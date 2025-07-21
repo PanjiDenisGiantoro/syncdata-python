@@ -1,10 +1,12 @@
+from datetime import datetime
+
 from flask import jsonify
 from case.connote_update.p_update_cnote_bill_flag import p_update_cnote_bill_flag
 from case.connote_update.p_sync_cnote_upd_process import p_sync_cnote_upd_process
 from case.connote_update.p_sync_r_cnote_upd_process import p_sync_r_cnote_upd_process
 from case.connote_update.p_get_job_cnote_audit import p_get_job_cnote_audit
-from db import get_oracle_connection_billing
-
+from db import get_oracle_connection_billing, get_oracle_connection_dbrbn
+from case.moda.p_get_bag_no import p_get_bag_no
 
 def get_cnote_numbers():
     # Get the CNOTE numbers from the database or other source
@@ -14,12 +16,11 @@ def get_cnote_numbers():
         query = """
                 SELECT A.CNOTE_NO
                 FROM CMS_CNOTE B,
-                     JNE.CONNOTE_UPDATE@DBRBN A
+                     REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
-                  AND TRUNC(CDATE) = TRUNC(SYSDATE)
-                  AND TRUNC(B.CNOTE_DATE) < TRUNC(CDATE)
-                  AND A.CNOTE_NO = B.CNOTE_NO(+)
-                  AND ROWNUM <= 1
+                  AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
+              --    AND TRUNC(B.CNOTE_DATE) < TRUNC(CDATE)
+                 AND A.CNOTE_NO = B.CNOTE_NO(+)
                 """
         cursor.execute(query)
         cnote_numbers = [row[0] for row in cursor.fetchall()]
@@ -93,3 +94,53 @@ def get_cnote_numbers():
             return jsonify({"message": "Tidak ada nomor CNOTE yang ditemukan atau terjadi kesalahan pada query!"}), 500
     else:
         return jsonify({"message": "Tidak dapat terhubung ke database Billing."}), 500
+
+
+
+def get_moda(p_date):
+    # Get the moda (BAG_NO and TRANSIT_MANIFEST) data from the database
+    connection = get_oracle_connection_dbrbn()
+    if connection:
+        cursor = connection.cursor()
+        query = """
+                SELECT BAG_NO, TRANSIT_MANIFEST
+                FROM JNE.CMS_COST_TRANSIT_V2
+                WHERE TRUNC(TRANSIT_MANIFEST_DATE) = TO_DATE(:p_date, 'YYYY-MM-DD')
+                  and bag_no = 'AA64126057'
+                GROUP BY BAG_NO, TRANSIT_MANIFEST 
+                """
+
+        cursor.execute(query, {'p_date': p_date})
+        moda_data = cursor.fetchall()
+        cursor.close()
+
+        if moda_data:
+            from case.moda.p_get_bag_no import p_get_bag_no
+            from case.moda.p_upd_cost import p_upd_cost
+            p_get_bag_no_count = 0
+            p_upd_cost_count = 0
+            results = []
+            for bag_no, transit_manifest in moda_data:
+                # Proses p_get_bag_no
+                result_bag = p_get_bag_no(bag_no, transit_manifest, p_date)
+                if result_bag.get('status') == 'success':
+                    p_get_bag_no_count += 1
+                # Proses p_upd_cost
+                result_upd = p_upd_cost(bag_no, transit_manifest)
+                if result_upd.get('status') == 'success':
+                    p_upd_cost_count += 1
+                results.append({
+                    "BAG_NO": bag_no,
+                    "TRANSIT_MANIFEST": transit_manifest,
+                    "p_get_bag_no_result": result_bag,
+                    "p_upd_cost_result": result_upd
+                })
+            summary = {
+                "p_get_bag_no": p_get_bag_no_count,
+                "p_upd_cost": p_upd_cost_count
+            }
+            return jsonify({"Moda Data": results, "summary": summary}), 200
+        else:
+            return jsonify({"message": "No data found for the provided date."}), 404
+    else:
+        return jsonify({"message": "Unable to connect to DBRBN database."}), 500
