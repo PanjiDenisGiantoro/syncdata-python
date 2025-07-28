@@ -1,2 +1,4 @@
 app.log
 .env
+frontend/
+log_app/

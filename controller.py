@@ -1,16 +1,16 @@
 from datetime import datetime
 from tqdm import tqdm
 from flask import jsonify
-import logging
+from logger_config import logger
 
 from case.connote_update.p_update_cnote_bill_flag import p_update_cnote_bill_flag
 from case.connote_update.p_sync_cnote_upd_process import p_sync_cnote_upd_process
 from case.connote_update.p_sync_r_cnote_upd_process import p_sync_r_cnote_upd_process
 from case.connote_update.p_get_job_cnote_audit import p_get_job_cnote_audit
 from db import get_oracle_connection_billing, get_oracle_connection_dbrbn
-from case.moda.p_get_bag_no import p_get_bag_no
+from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today # Import fungsi monitoring
 
-logger = logging.getLogger(__name__)
+
 
 # Fungsi untuk mendapatkan CNOTE Numbers dan melakukan proses sync
 def get_cnote_numbers(job_id):
@@ -25,7 +25,7 @@ def get_cnote_numbers(job_id):
                 FROM CMS_CNOTE B,
                      REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
-                  AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
+                    AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
                   AND A.CNOTE_NO = B.CNOTE_NO(+)
                 """
         cursor.execute(query)
@@ -38,7 +38,7 @@ def get_cnote_numbers(job_id):
             return jsonify({"message": "No CNOTE numbers found."}), 404  # Tidak ada data untuk diproses
 
         # Batasi hanya 10.000 CNOTE untuk diambil
-        cnote_numbers = cnote_numbers[:1000]
+        cnote_numbers = cnote_numbers[:2]
 
         # Proses CNOTE numbers
         update_results = []
@@ -47,29 +47,33 @@ def get_cnote_numbers(job_id):
             try:
                 cnote_result = p_sync_cnote_upd_process(cnote, connection)
                 if cnote_result['status'] == "error":
-                    logger.error(f"Job ID {job_id}: Failed to update CNOTE {cnote}. Error: {cnote_result.get('message', '')}")
+                    logger.error(
+                        f"[p_sync_cnote_upd_process] Job ID {job_id}: Failed to update CNOTE {cnote}. Error: {cnote_result.get('message', '')}")
                     raise Exception(f"Failed to update CNOTE: {cnote}")
                 connection.commit()
 
                 r_cnote_result = p_sync_r_cnote_upd_process(cnote, connection)
                 if r_cnote_result['status'] == "error":
-                    logger.error(f"Job ID {job_id}: Failed to update R_CNOTE {cnote}. Error: {r_cnote_result.get('message', '')}")
+                    logger.error(
+                        f"[p_sync_r_cnote_upd_process] Job ID {job_id}: Failed to update R_CNOTE {cnote}. Error: {r_cnote_result.get('message', '')}")
                     raise Exception(f"Failed to update R_CNOTE: {cnote}")
                 connection.commit()
 
                 update_flag_result = p_update_cnote_bill_flag(cnote, connection)
                 if update_flag_result['status'] == "error":
-                    logger.error(f"Job ID {job_id}: Failed to update Bill Flag for CNOTE {cnote}. Error: {update_flag_result.get('message', '')}")
+                    logger.error(
+                        f"[p_update_cnote_bill_flag] Job ID {job_id}: Failed to update Bill Flag for CNOTE {cnote}. Error: {update_flag_result.get('message', '')}")
                     raise Exception(f"Failed to update Bill Flag for CNOTE: {cnote}")
                 connection.commit()
 
                 get_job_cnote_audit = p_get_job_cnote_audit(cnote, connection)
                 if get_job_cnote_audit['status'] == "error":
-                    logger.error(f"Job ID {job_id}: Audit failed or no audit result for CNOTE {cnote}. Skipping audit.")
+                    logger.error(
+                        f"[p_get_job_cnote_audit] Job ID {job_id}: Audit failed or no audit result for CNOTE {cnote}. Skipping audit.")
                 else:
                     update_results.append({"CNOTE": cnote, "Audit_Result": get_job_cnote_audit})
 
-                update_results.append({
+                    update_results.append({
                     "CNOTE": cnote,
                     "CNOTE_Update_Result": cnote_result,
                     "R_CNOTE_Update_Result": r_cnote_result,
@@ -81,13 +85,19 @@ def get_cnote_numbers(job_id):
 
         if update_results:
             percent = int((len(update_results) / len(cnote_numbers)) * 100)
+
+
             return jsonify({
                 "CNOTE Numbers": cnote_numbers,
                 "Sync Results": update_results,
                 "Progress": f"{percent}%"
             }), 200
 
-        return jsonify({"message": "Beberapa CNOTE gagal diperbarui.", "errors": errors, "Progress": f"{int((len(update_results) / len(cnote_numbers)) * 100)}%"}), 500
+        return jsonify({
+            "message": "Beberapa CNOTE gagal diperbarui.",
+            "errors": errors,
+            "Progress": f"{int((len(update_results) / len(cnote_numbers)) * 100)}%"
+        }), 500
 
     else:
         return jsonify({"message": "Tidak dapat terhubung ke database Billing."}), 500
