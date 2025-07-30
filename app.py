@@ -1,20 +1,44 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import os
-from flask import Flask, jsonify, request
+from flask_cors import CORS
+import oracledb
+from flask import Flask, jsonify, request, abort
 import threading
 from logger_config import logger
 import time
 import uuid  # Untuk menghasilkan ID unik
-from controller import get_cnote_numbers  # Import the route function
-from db import get_oracle_connection_billing
+from controller import get_cnote_numbers,progress_data    # Import the route function
 from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today  # Import monitoring function
+from db import get_oracle_connection_billing , get_oracle_connection_dbrbn
 
 
 # Fungsi untuk mengkonfigurasi logging dengan rotasi file setiap hari
 
 app = Flask(__name__)
+CORS(app)
 
+@app.route("/get_progress", methods=["GET"])
+def get_progress():
+    if progress_data['total'] == 0:
+        return jsonify({
+            "message": "Tidak ada CNOTE yang diproses.",
+            "progress": "0%"
+        }), 200
+    else:
+        # Calculate the progress in percentage
+        total = progress_data['total']
+        success = progress_data['success']
+        failed = progress_data['failed']
+        progress_percent = (success / total) * 100
+        return jsonify({
+            "message": "Proses CNOTE",
+            "total": total,
+            "success": success,
+            "failed": failed,
+            "progress": f"{progress_percent:.2f}%",
+            "status": "Sedang Berjalan"
+        }), 200
 
 # Fungsi untuk memanggil task atau API untuk mendapatkan CNOTE Numbers
 def scheduled_task():
@@ -48,12 +72,71 @@ def home():
 
 @app.route("/test_connection_billing")
 def test_connection_billing():
-    connection = get_oracle_connection_billing()
+    connection = get_oracle_connection_dbrbn()
     if connection:
         connection.close()
-        return jsonify({"message": "Connection to Billing successful!"}), 200
+        return jsonify({"message": "Connection to dbrbn successful!"}), 200
     else:
-        return jsonify({"message": "Connection to Billing failed!"}), 500
+        return jsonify({"message": "Connection to dbrbn failed!"}), 500
+
+
+@app.route("/api/listdatacn", methods=["GET"])
+def list_data_cn():
+    """
+    API to fetch data from MONITORING_SYNC_CNOTE table
+    Returns:
+        JSON: List of records with MODULE, TOTAL_REBORN, TOTAL_BILLING, TOTAL_BILL_FLAG, and PERIODE
+    """
+    try:
+        connection = get_oracle_connection_billing()
+        if not connection:
+            return jsonify({"error": "Database connection failed"}), 500
+
+        cursor = connection.cursor()
+
+        # Query to fetch data from MONITORING_SYNC_CNOTE
+        query = """
+        SELECT 
+            MODULE, 
+            TOTAL_REBORN, 
+            TOTAL_BILLING,
+            TOTAL_BILL_FLAG,
+             PERIODE
+        FROM MONITORING_SYNC_CNOTE
+        ORDER BY PERIODE DESC, MODULE
+        """
+
+        cursor.execute(query)
+
+        # Convert query results to list of dictionaries
+        columns = [col[0].lower() for col in cursor.description]
+        result = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        cursor.close()
+        connection.close()
+
+        return jsonify({"data": result, "count": len(result)}), 200
+
+    except Exception as e:
+        if 'cursor' in locals():
+            cursor.close()
+        if 'connection' in locals():
+            connection.close()
+        return jsonify({"error": str(e)}), 500
+
+
+def get_oracle_connection_billing():
+    """Helper function to get database connection"""
+    try:
+        connection = oracledb.connect(
+            user=os.getenv('DB_USER_BILLING'),
+            password=os.getenv('DB_PASSWORD_BILLING'),
+            dsn=os.getenv('DB_DSN_BILLING')
+        )
+        return connection
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+        return None
 
 
 # The route for getting CNOTE numbers

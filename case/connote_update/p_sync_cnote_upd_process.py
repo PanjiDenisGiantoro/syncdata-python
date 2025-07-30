@@ -5,27 +5,24 @@ from db import get_oracle_connection_dbrbn, get_oracle_connection_billing
 import json
 from datetime import datetime
 
-def p_sync_cnote_upd_process(p_cnote, connection=None):
+def p_sync_cnote_upd_process(p_cnote):
     try:
         # Step 1: Get data from CMS_CNOTE where CNOTE_NO = P_CNOTE
-        if connection is None:
-            connection = get_oracle_connection_dbrbn()  # Using the DB connection to DBRBN
-        if connection:
-            cursor = connection.cursor()
-            query = f"""
-                SELECT * FROM CMS_CNOTE A WHERE CNOTE_NO = :p_cnote
-            """
-            cursor.execute(query, {"p_cnote": p_cnote})
-            cnote_data = cursor.fetchone()  # Assuming that CNOTE_NO is unique
-            cursor.close()
 
-            if cnote_data:
+        connection = get_oracle_connection_billing()  # Using the DB connection to DBRBN
+        if connection:
+            # cursor = connection.cursor()
+            # query = f"""
+            #     SELECT * FROM CMS_CNOTE@DBRBN A WHERE CNOTE_NO = :p_cnote
+            # """
+            # cursor.execute(query, {"p_cnote": p_cnote})
+            # cnote_data = cursor.fetchone()  # Assuming that CNOTE_NO is unique
+            # cursor.close()
+
+            # if cnote_data:
                 # Step 2: Merge the data into the billing database
                 # Use the same connection if possible, otherwise get new
-                if connection is None:
-                    connection_billing = get_oracle_connection_billing()
-                else:
-                    connection_billing = connection
+                connection_billing = get_oracle_connection_billing()
                 if connection_billing:
                     cursor_billing = connection_billing.cursor()
                     merge_query = f"""
@@ -149,16 +146,14 @@ def p_sync_cnote_upd_process(p_cnote, connection=None):
                     if connection_billing != connection:
                         cursor_billing.close()
                         connection_billing.close()
-                    else:
-                        cursor_billing.close()
                     return {"status": "success", "message": "CNOTE updated/inserted successfully."}
                 else:
                     raise Exception("Unable to connect to Billing database.")
-            else:
-                raise Exception("CNOTE data not found for the given CNOTE_NO.")
+            # else:
+            #     raise Exception("CNOTE data not found for the given CNOTE_NO.")
 
-        else:
-            raise Exception(f"CNOTE_NO {p_cnote} not found in DBRBN.")
+        # else:
+        #     raise Exception(f"CNOTE_NO {p_cnote} not found in DBRBN.")
 
     except Exception as e:
         # print(f"Error in syncing CNOTE {p_cnote}: {e}")

@@ -2,6 +2,8 @@ from datetime import datetime
 from tqdm import tqdm
 from flask import jsonify
 from logger_config import logger
+# Progress data is now managed in app.py
+progress_data = None  # Will be set by app.py
 
 from case.connote_update.p_update_cnote_bill_flag import p_update_cnote_bill_flag
 from case.connote_update.p_sync_cnote_upd_process import p_sync_cnote_upd_process
@@ -11,7 +13,11 @@ from db import get_oracle_connection_billing, get_oracle_connection_dbrbn
 from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today # Import fungsi monitoring
 
 
-
+progress_data = {
+    'total': 0,
+    'success': 0,
+    'failed': 0
+}
 # Fungsi untuk mendapatkan CNOTE Numbers dan melakukan proses sync
 def get_cnote_numbers(job_id):
     # Generate unique job ID to trace the task
@@ -38,50 +44,60 @@ def get_cnote_numbers(job_id):
             return jsonify({"message": "No CNOTE numbers found."}), 404  # Tidak ada data untuk diproses
 
         # Batasi hanya 10.000 CNOTE untuk diambil
-        cnote_numbers = cnote_numbers[:2]
+        cnote_numbers = cnote_numbers[:10]
 
+        # Reset progress data
+        if progress_data is not None:
+            progress_data['total'] = len(cnote_numbers)
+            progress_data['success'] = 0
+            progress_data['failed'] = 0
         # Proses CNOTE numbers
         update_results = []
         errors = []
         for cnote in tqdm(cnote_numbers, desc="Processing CNOTE", unit="item"):
             try:
-                cnote_result = p_sync_cnote_upd_process(cnote, connection)
+                cnote_result = p_sync_cnote_upd_process(cnote)
                 if cnote_result['status'] == "error":
                     logger.error(
                         f"[p_sync_cnote_upd_process] Job ID {job_id}: Failed to update CNOTE {cnote}. Error: {cnote_result.get('message', '')}")
                     raise Exception(f"Failed to update CNOTE: {cnote}")
                 connection.commit()
-
-                r_cnote_result = p_sync_r_cnote_upd_process(cnote, connection)
+                #
+                r_cnote_result = p_sync_r_cnote_upd_process(cnote)
                 if r_cnote_result['status'] == "error":
                     logger.error(
                         f"[p_sync_r_cnote_upd_process] Job ID {job_id}: Failed to update R_CNOTE {cnote}. Error: {r_cnote_result.get('message', '')}")
                     raise Exception(f"Failed to update R_CNOTE: {cnote}")
-                connection.commit()
-
-                update_flag_result = p_update_cnote_bill_flag(cnote, connection)
+                # connection.commit()
+                #
+                update_flag_result = p_update_cnote_bill_flag(cnote)
                 if update_flag_result['status'] == "error":
                     logger.error(
                         f"[p_update_cnote_bill_flag] Job ID {job_id}: Failed to update Bill Flag for CNOTE {cnote}. Error: {update_flag_result.get('message', '')}")
                     raise Exception(f"Failed to update Bill Flag for CNOTE: {cnote}")
                 connection.commit()
 
-                get_job_cnote_audit = p_get_job_cnote_audit(cnote, connection)
+                get_job_cnote_audit = p_get_job_cnote_audit(cnote)
                 if get_job_cnote_audit['status'] == "error":
                     logger.error(
                         f"[p_get_job_cnote_audit] Job ID {job_id}: Audit failed or no audit result for CNOTE {cnote}. Skipping audit.")
                 else:
                     update_results.append({"CNOTE": cnote, "Audit_Result": get_job_cnote_audit})
 
-                    update_results.append({
+                update_results.append({
                     "CNOTE": cnote,
                     "CNOTE_Update_Result": cnote_result,
                     "R_CNOTE_Update_Result": r_cnote_result,
                     "Update_Flag_Result": update_flag_result
                 })
 
+                if progress_data is not None:
+                    progress_data['success'] += 1
+
             except Exception as e:
                 errors.append({"CNOTE": cnote, "error": str(e)})
+                if progress_data is not None:
+                    progress_data['failed'] += 1
 
         if update_results:
             percent = int((len(update_results) / len(cnote_numbers)) * 100)

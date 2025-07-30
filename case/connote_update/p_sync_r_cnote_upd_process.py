@@ -4,11 +4,10 @@ from db import get_oracle_connection_dbrbn, get_oracle_connection_billing
 from case.connote_update import p_sync_r_cnote_upd_process
 
 
-def p_sync_r_cnote_upd_process(p_cnote, connection=None):
+def p_sync_r_cnote_upd_process(p_cnote):
     try:
         # Step 1: Get data from CMS_CNOTE where CNOTE_NO = P_CNOTE
-        if connection is None:
-            connection = get_oracle_connection_dbrbn()  # Using the DB connection to DBRBN
+        connection = get_oracle_connection_dbrbn()  # Using the DB connection to DBRBN
         if connection:
             cursor = connection.cursor()
             query = f"""
@@ -22,10 +21,7 @@ def p_sync_r_cnote_upd_process(p_cnote, connection=None):
                 # print(f"Found CNOTE data: {cnote_data}")
 
                 # Step 2: Sync the data using the MERGE statement with Billing database
-                if connection is None:
-                    connection_billing = get_oracle_connection_billing()
-                else:
-                    connection_billing = connection
+                connection_billing = get_oracle_connection_billing()
                 if connection_billing:
                     cursor_billing = connection_billing.cursor()
                     merge_query = f"""

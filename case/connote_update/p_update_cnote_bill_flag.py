@@ -3,11 +3,10 @@ from config import Config
 from case.connote_update import p_update_cnote_bill_flag
 from db import get_oracle_connection_dbrbn, get_oracle_connection_billing
 
-def p_update_cnote_bill_flag(p_cnote, connection=None):
+def p_update_cnote_bill_flag(p_cnote):
     try:
         # Step 1: Check if there's exactly 1 record for the given CNOTE_NO in CMS_CNOTE
-        if connection is None:
-            connection = get_oracle_connection_dbrbn()  # Using the DB connection to DBRBN
+        connection = get_oracle_connection_dbrbn()  # Using the DB connection to DBRBN
         if connection:
             cursor = connection.cursor()
             count_query = f"""
@@ -22,10 +21,7 @@ def p_update_cnote_bill_flag(p_cnote, connection=None):
                 # print(f"Found {p_cnote}. with update.")
 
                 # Step 2: Update the BILL_FLAG to 'Y' for the given CNOTE_NO in the CONNOTE_UPDATE table
-                if connection is None:
-                    connection_updatedbrbn = get_oracle_connection_billing()  # Using the DB connection to Billing
-                else:
-                    connection_updatedbrbn = connection
+                connection_updatedbrbn = get_oracle_connection_billing()  # Using the DB connection to Billing
                 if connection_updatedbrbn:
                     cursor_updatedbrnm = connection_updatedbrbn.cursor()
                     update_query = f"""
@@ -50,7 +46,6 @@ def p_update_cnote_bill_flag(p_cnote, connection=None):
             cursor.close()
             if connection is not None:
                 connection.close()
-
         else:
             raise Exception(f"Unable to connect to DBRBN for CNOTE_NO {p_cnote}.")
 
