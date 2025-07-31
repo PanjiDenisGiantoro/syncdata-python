@@ -1,0 +1,13 @@
+{
+  "total": 10000,
+  "success": 2000,
+  "failed": 0,
+  "status": "Sedang Berjalan",
+  "batch_size": 1000,
+  "total_batches": 10,
+  "current_batch": 2,
+  "logs": [
+    "\u2705 Batch 1: 1000 records processed successfully",
+    "\u2705 Batch 2: 1000 records processed successfully"
+  ]
+}

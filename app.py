@@ -8,37 +8,64 @@ import threading
 from logger_config import logger
 import time
 import uuid  # Untuk menghasilkan ID unik
-from controller import get_cnote_numbers,progress_data    # Import the route function
+from controller import get_cnote_numbers  # Import the route function
 from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today  # Import monitoring function
-from db import get_oracle_connection_billing , get_oracle_connection_dbrbn
-
+from db import get_oracle_connection_billing, get_oracle_connection_dbrbn
+from progress_utils import load_progress
 
 # Fungsi untuk mengkonfigurasi logging dengan rotasi file setiap hari
 
 app = Flask(__name__)
 CORS(app)
 
+
+# def ensure_progress_data():
+#     if progress_data is None:
+#         progress_data = {
+#             'total': 0,
+#             'success': 0,
+#             'failed': 0,
+#             'status': 'Menunggu'
+#         }
+
 @app.route("/get_progress", methods=["GET"])
 def get_progress():
-    if progress_data['total'] == 0:
+    progress_data = load_progress()
+    
+    if not progress_data or 'status' not in progress_data:
         return jsonify({
-            "message": "Tidak ada CNOTE yang diproses.",
-            "progress": "0%"
-        }), 200
-    else:
-        # Calculate the progress in percentage
-        total = progress_data['total']
-        success = progress_data['success']
-        failed = progress_data['failed']
-        progress_percent = (success / total) * 100
-        return jsonify({
-            "message": "Proses CNOTE",
-            "total": total,
-            "success": success,
-            "failed": failed,
-            "progress": f"{progress_percent:.2f}%",
-            "status": "Sedang Berjalan"
-        }), 200
+            'status': 'error',
+            'message': 'Progress data not available',
+            'data': None
+        }), 404
+        
+    # Calculate batch information
+    total = progress_data.get('total', 0)
+    success = progress_data.get('success', 0)
+    failed = progress_data.get('failed', 0)
+    status = progress_data.get('status', 'Tidak Diketahui')
+    batch_size = progress_data.get('batch_size', 1000)
+    
+    # Calculate batch information
+    total_batches = progress_data.get('total_batches', 0)
+    current_batch = progress_data.get('current_batch', 0)
+    logs = progress_data.get('logs', [])
+    
+    # Calculate progress percentages
+    progress_percent = (success / total) * 100 if total > 0 else 0
+    batch_percent = (current_batch / total_batches) * 100 if total_batches > 0 else 0
+
+    return jsonify({
+        "message": "Proses CNOTE",
+        "total": total,
+        "success": success,
+        "failed": failed,
+        "progress": f"{progress_percent:.2f}%",
+        "batch_percent": f"{batch_percent:.2f}%",
+        "status": status
+    }), 200
+
+
 
 # Fungsi untuk memanggil task atau API untuk mendapatkan CNOTE Numbers
 def scheduled_task():
