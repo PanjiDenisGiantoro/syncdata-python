@@ -20,6 +20,7 @@ progress_data = {
 }
 # Fungsi untuk mendapatkan CNOTE Numbers dan melakukan proses sync
 def get_cnote_numbers(job_id):
+
     # Generate unique job ID to trace the task
     logger.info(f"Job ID {job_id}: Starting to fetch CNOTE numbers...")
 
@@ -32,7 +33,8 @@ def get_cnote_numbers(job_id):
                      REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
                     AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
-                  AND A.CNOTE_NO = B.CNOTE_NO(+)
+                  AND A.CNOTE_NO = B.CNOTE_NO(+) 
+                  FETCH FIRST 10 ROWS ONLY
                 """
         cursor.execute(query)
         cnote_numbers = [row[0] for row in cursor.fetchall()]
@@ -43,77 +45,83 @@ def get_cnote_numbers(job_id):
             logger.info(f"Job ID {job_id}: No CNOTE found for processing.")
             return jsonify({"message": "No CNOTE numbers found."}), 404  # Tidak ada data untuk diproses
 
-        # Batasi hanya 10.000 CNOTE untuk diambil
-        cnote_numbers = cnote_numbers[:10]
-
+        # Set maximum limit to 1000 records and process in batches of 100
+        batch_size = 2
+        
+        # Limit to max_records
+        # cnote_numbers = cnote_numbers[:max_records]
+        total_records = len(cnote_numbers)
+        processed_count = 0
+        success_count = 0
+        failed_count = 0
+        print(cnote_numbers)
         # Reset progress data
         if progress_data is not None:
-            progress_data['total'] = len(cnote_numbers)
+            progress_data['total'] = total_records
             progress_data['success'] = 0
             progress_data['failed'] = 0
-        # Proses CNOTE numbers
-        update_results = []
-        errors = []
-        for cnote in tqdm(cnote_numbers, desc="Processing CNOTE", unit="item"):
-            try:
-                cnote_result = p_sync_cnote_upd_process(cnote)
-                if cnote_result['status'] == "error":
-                    logger.error(
-                        f"[p_sync_cnote_upd_process] Job ID {job_id}: Failed to update CNOTE {cnote}. Error: {cnote_result.get('message', '')}")
-                    raise Exception(f"Failed to update CNOTE: {cnote}")
-                connection.commit()
-                #
-                r_cnote_result = p_sync_r_cnote_upd_process(cnote)
-                if r_cnote_result['status'] == "error":
-                    logger.error(
-                        f"[p_sync_r_cnote_upd_process] Job ID {job_id}: Failed to update R_CNOTE {cnote}. Error: {r_cnote_result.get('message', '')}")
-                    raise Exception(f"Failed to update R_CNOTE: {cnote}")
-                # connection.commit()
-                #
-                update_flag_result = p_update_cnote_bill_flag(cnote)
-                if update_flag_result['status'] == "error":
-                    logger.error(
-                        f"[p_update_cnote_bill_flag] Job ID {job_id}: Failed to update Bill Flag for CNOTE {cnote}. Error: {update_flag_result.get('message', '')}")
-                    raise Exception(f"Failed to update Bill Flag for CNOTE: {cnote}")
-                connection.commit()
-
-                get_job_cnote_audit = p_get_job_cnote_audit(cnote)
-                if get_job_cnote_audit['status'] == "error":
-                    logger.error(
-                        f"[p_get_job_cnote_audit] Job ID {job_id}: Audit failed or no audit result for CNOTE {cnote}. Skipping audit.")
-                else:
-                    update_results.append({"CNOTE": cnote, "Audit_Result": get_job_cnote_audit})
-
-                update_results.append({
-                    "CNOTE": cnote,
-                    "CNOTE_Update_Result": cnote_result,
-                    "R_CNOTE_Update_Result": r_cnote_result,
-                    "Update_Flag_Result": update_flag_result
-                })
-
-                if progress_data is not None:
-                    progress_data['success'] += 1
-
-            except Exception as e:
-                errors.append({"CNOTE": cnote, "error": str(e)})
-                if progress_data is not None:
-                    progress_data['failed'] += 1
-
-        if update_results:
-            percent = int((len(update_results) / len(cnote_numbers)) * 100)
-
-
+            
+        try:
+            logger.info(f"Job ID {job_id}: Starting to process {total_records} CNOTE numbers in batches of {batch_size}...")
+            
+            # Process in batches
+            for i in range(0, total_records, batch_size):
+                batch = cnote_numbers[i:i + batch_size]
+                batch_number = (i // batch_size) + 1
+                total_batches = (total_records + batch_size - 1) // batch_size
+                
+                logger.info(f"Job ID {job_id}: Processing batch {batch_number}/{total_batches} with {len(batch)} records")
+                
+                try:
+                    # Process each function sequentially for the current batch
+                    logger.info(f"Job ID {job_id}: Starting p_sync_cnote_upd_process for batch {batch_number}...")
+                    p_sync_cnote_upd_process(batch)
+                    
+                    logger.info(f"Job ID {job_id}: Starting p_sync_r_cnote_upd_process for batch {batch_number}...")
+                    p_sync_r_cnote_upd_process(batch)
+                    
+                    logger.info(f"Job ID {job_id}: Starting p_update_cnote_bill_flag for batch {batch_number}...")
+                    p_update_cnote_bill_flag(batch)
+                    
+                    logger.info(f"Job ID {job_id}: Starting p_get_job_cnote_audit for batch {batch_number}...")
+                    p_get_job_cnote_audit(batch)
+                    
+                    # Update success count for the batch
+                    success_count += len(batch)
+                    if progress_data is not None:
+                        progress_data['success'] = success_count
+                        progress_data['failed'] = failed_count
+                    
+                    logger.info(f"Job ID {job_id}: Successfully processed batch {batch_number}/{total_batches} with {len(batch)} records")
+                    
+                except Exception as batch_error:
+                    failed_count += len(batch)
+                    if progress_data is not None:
+                        progress_data['failed'] = failed_count
+                    logger.error(f"Job ID {job_id}: Error in batch {batch_number}: {str(batch_error)}")
+                    # Continue with next batch even if one fails
+                    continue
+            
+            # Final status
+            logger.info(f"Job ID {job_id}: Batch processing completed. Success: {success_count}, Failed: {failed_count}")
+            
+            if failed_count == 0:
+                return jsonify({
+                    "message": f"Successfully processed {success_count} CNOTE numbers in batches.",
+                    "processed": success_count,
+                    "failed": failed_count
+                }), 200
+            else:
+                return jsonify({
+                    "message": f"Processed with some failures. Success: {success_count}, Failed: {failed_count}",
+                    "processed": success_count,
+                    "failed": failed_count
+                }), 207  # 207 Multi-Status
+                
+        except Exception as e:
+            logger.error(f"Job ID {job_id}: Unexpected error in batch processing: {str(e)}")
             return jsonify({
-                "CNOTE Numbers": cnote_numbers,
-                "Sync Results": update_results,
-                "Progress": f"{percent}%"
-            }), 200
-
-        return jsonify({
-            "message": "Beberapa CNOTE gagal diperbarui.",
-            "errors": errors,
-            "Progress": f"{int((len(update_results) / len(cnote_numbers)) * 100)}%"
-        }), 500
-
-    else:
-        return jsonify({"message": "Tidak dapat terhubung ke database Billing."}), 500
+                "error": f"Unexpected error in batch processing: {str(e)}",
+                "processed": success_count,
+                "failed": failed_count
+            }), 500
