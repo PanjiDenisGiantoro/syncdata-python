@@ -32,7 +32,7 @@ def extract_error_from_log(log_date):
     return error_logs
 
 def p_monitoring_sync_cnote(module, total_reborn, total_billing, periode,
-                            total_bill_flag=0, remark=None,
+                            total_bill_flag=0, remark=None, total_cnote_update=0,
                             createdby='SYSTEM', lastupdby='SYSTEM',
                             lastupdprocess='monitoring', deleted=0):
     connection = get_oracle_connection_billing()
@@ -57,6 +57,7 @@ def p_monitoring_sync_cnote(module, total_reborn, total_billing, periode,
               SET TOTAL_REBORN = :total_reborn,
                   TOTAL_BILLING = :total_billing,
                   TOTAL_BILL_FLAG = :total_bill_flag,
+                  TOTAL_CNOTE_UPDATE = :total_cnote_update,
                   REMARK = :remark,
                   UPDATE_AT = :update_at,
                   LASTUPDTM = :lastupdtm,
@@ -69,6 +70,7 @@ def p_monitoring_sync_cnote(module, total_reborn, total_billing, periode,
             'total_reborn': total_reborn,
             'total_billing': total_billing,
             'total_bill_flag': total_bill_flag,
+            'total_cnote_update': total_cnote_update,
             'remark': remark,
             'update_at': now,
             'lastupdtm': now,
@@ -82,11 +84,11 @@ def p_monitoring_sync_cnote(module, total_reborn, total_billing, periode,
           INSERT INTO monitoring_sync_cnote (
               ID, MODULE, TOTAL_REBORN, TOTAL_BILLING, TOTAL_BILL_FLAG, REMARK,
               CREATE_DATE, UPDATE_AT, PERIODE, CREATEDTM, CREATEDBY,
-              LASTUPDTM, LASTUPDBY, LASTUPDPROCESS, DELETED
+              LASTUPDTM, LASTUPDBY, LASTUPDPROCESS, DELETED, TOTAL_CNOTE_UPDATE
           ) VALUES (
               seq_monitoring_sync_cnote_id.NEXTVAL, :module, :total_reborn, :total_billing,
               :total_bill_flag, :remark, :create_date, :update_at, :periode,
-              :createdtm, :createdby, :lastupdtm, :lastupdby, :lastupdprocess, :deleted
+              :createdtm, :createdby, :lastupdtm, :lastupdby, :lastupdprocess, :deleted, :total_cnote_update
           )
           '''
         params = {
@@ -103,7 +105,8 @@ def p_monitoring_sync_cnote(module, total_reborn, total_billing, periode,
             'lastupdtm': now,
             'lastupdby': lastupdby,
             'lastupdprocess': lastupdprocess,
-            'deleted': deleted
+            'deleted': deleted,
+            'total_cnote_update': total_cnote_update
         }
 
     cursor.execute(sql, params)
@@ -131,6 +134,14 @@ def monitoring_cnote_count_today():
           AND A.CNOTE_NO = B.CNOTE_NO(+)
     """
 
+    query_connote_update = """
+        SELECT COUNT(A.CNOTE_NO)
+        FROM CMS_CNOTE B,
+             REPJNE.CONNOTE_UPDATE A
+        WHERE TRUNC(CDATE) = TRUNC(SYSDATE) - 1
+          AND A.CNOTE_NO = B.CNOTE_NO(+)
+    """
+
     def get_count(conn_func, query):
         conn = conn_func()
         if not conn:
@@ -145,6 +156,7 @@ def monitoring_cnote_count_today():
     count_dbrbn = get_count(get_oracle_connection_dbrbn, query_total)
     count_billing = get_count(get_oracle_connection_billing, query_total)
     count_unbilled = get_count(get_oracle_connection_billing, query_unbilled)
+    count_cnote_update = get_count(get_oracle_connection_billing, query_connote_update)
 
     error_logs = extract_error_from_log(today_date)
     remark_data = {
@@ -165,7 +177,8 @@ def monitoring_cnote_count_today():
         total_billing=count_billing,
         periode=today_date,
         total_bill_flag=count_unbilled,
-        remark=remark_json
+        remark=remark_json,
+        total_cnote_update=count_cnote_update
     )
 
     return {
@@ -173,6 +186,7 @@ def monitoring_cnote_count_today():
         "total_reborn": count_dbrbn,
         "total_billing": count_billing,
         "unbilled_flag": count_unbilled,
+        "total_cnote_update": count_cnote_update,
         "status": "MATCH" if count_dbrbn == count_billing else "NOT MATCH",
         "remark": remark_data
     }

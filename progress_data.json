@@ -1,13 +1,13 @@
 {
-  "total": 10000,
-  "success": 2000,
+  "total": 10,
+  "success": 10,
   "failed": 0,
-  "status": "Sedang Berjalan",
-  "batch_size": 1000,
-  "total_batches": 10,
+  "status": "Selesai",
+  "batch_size": 5,
+  "total_batches": 2,
   "current_batch": 2,
   "logs": [
-    "\u2705 Batch 1: 1000 records processed successfully",
-    "\u2705 Batch 2: 1000 records processed successfully"
+    "\u2705 Batch 1: 5 records processed successfully",
+    "\u2705 Batch 2: 5 records processed successfully"
   ]
 }

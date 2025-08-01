@@ -1,6 +1,8 @@
 from datetime import datetime
 from tqdm import tqdm
 from flask import jsonify
+
+from case.connote_update.p_count_cnote import p_count_cnote
 from logger_config import logger
 from progress_utils import save_progress, load_progress, clear_progress
 
@@ -44,9 +46,9 @@ def get_cnote_numbers(job_id):
                 FROM CMS_CNOTE B,
                      REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
-                    AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
+                    AND TRUNC(CDATE) = TRUNC(SYSDATE) - 3
                   AND A.CNOTE_NO = B.CNOTE_NO(+) 
-                  FETCH FIRST 10000 ROWS ONLY
+                  FETCH FIRST 10 ROWS ONLY
                 """
         cursor.execute(query)
         cnote_numbers = [row[0] for row in cursor.fetchall()]
@@ -58,7 +60,7 @@ def get_cnote_numbers(job_id):
             save_progress(progress_data)
             return jsonify({"message": "No CNOTE numbers found."}), 404
 
-        batch_size = 1000
+        batch_size = 5
         total_records = len(cnote_numbers)
         total_batches = (total_records + batch_size - 1) // batch_size
         success_count = 0
@@ -96,11 +98,17 @@ def get_cnote_numbers(job_id):
                     logger.info(f"Job ID {job_id}: Running p_sync_r_cnote_upd_process for batch {batch_number}...")
                     p_sync_r_cnote_upd_process(batch)
 
-                    logger.info(f"Job ID {job_id}: Running p_update_cnote_bill_flag for batch {batch_number}...")
-                    p_update_cnote_bill_flag(batch)
 
                     logger.info(f"Job ID {job_id}: Running p_get_job_cnote_audit for batch {batch_number}...")
                     p_get_job_cnote_audit(batch)
+
+
+                    # logger.info(f"Job ID {job_id}: Running p_count_cnote for batch {batch_number}...")
+                    # p_count_cnote(batch)
+
+                    logger.info(f"Job ID {job_id}: Running p_update_cnote_bill_flag for batch {batch_number}...")
+                    p_update_cnote_bill_flag(batch)
+
 
                     success_count += len(batch)
                     progress_data.update({'success': success_count})
@@ -109,6 +117,8 @@ def get_cnote_numbers(job_id):
 
                     logger.info(f"Job ID {job_id}: Successfully processed batch {batch_number}/{total_batches} "
                                 f"({progress_percent_batch:.2f}%)")
+
+
                 except Exception as batch_error:
                     failed_count += len(batch)
                     progress_data.update({'failed': failed_count})

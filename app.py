@@ -72,11 +72,18 @@ def scheduled_task():
     job_id = str(uuid.uuid4())  # Generate unique job ID
     logger.info(f"Scheduled task started with Job ID: {job_id}")  # Logging untuk task scheduler
     try:
-        # Pastikan kode dijalankan dalam konteks aplikasi Flask
-        with app.app_context():  # Menggunakan konteks aplikasi Flask
-            get_cnote_numbers(job_id)  # Panggil fungsi yang ada pada controller dengan job_id
+        with app.app_context():
+            response = get_cnote_numbers(job_id)
+            # Tangani response dari get_cnote_numbers
+            if isinstance(response, tuple):
+                response_data, status_code = response
+                if status_code == 404 and response_data.get_json().get("message") == "No CNOTE numbers found.":
+                    logger.info(f"Job ID {job_id}: Skipping processing due to no CNOTE numbers.")
+                    return False  # Beri sinyal untuk berhenti
+            return True  # Lanjutkan normal
     except Exception as e:
         logger.error(f"Error occurred while running the task: {str(e)}")
+        return True  # Tetap lanjutkan meski ada error (opsional tergantung logika kamu)
 
 
 # Endpoint untuk memeriksa status scheduler (dummy, biar tidak error)
@@ -128,7 +135,8 @@ def list_data_cn():
             TOTAL_REBORN, 
             TOTAL_BILLING,
             TOTAL_BILL_FLAG,
-             PERIODE
+             PERIODE,
+            TOTAL_CNOTE_UPDATE
         FROM MONITORING_SYNC_CNOTE
         ORDER BY PERIODE DESC, MODULE
         """
@@ -191,7 +199,6 @@ def monitoring_task():
         return {"status": "error", "message": str(e)}
 
 
-# Menjalankan scheduled_task berulang kali dengan interval yang berbeda
 def run_continuous_jobs():
     logger.info("Running continuous tasks in background...")
     last_monitoring_run = 0
@@ -199,20 +206,58 @@ def run_continuous_jobs():
     while True:
         current_time = time.time()
 
-        # Jalankan scheduled task (setiap 10 detik)
-        scheduled_task()
+        # 🔴 Stop loop jika tidak ada data untuk diproses
+        should_continue = scheduled_task()
+        if not should_continue:
+            logger.info("No CNOTE to process. Stopping background task loop.")
+            break
 
-        # Jalankan monitoring task setiap 5 menit (300 detik)
-        if current_time - last_monitoring_run >= 50:  # 5 menit = 300 detik
+        if current_time - last_monitoring_run >= 300:
             monitoring_task()
             last_monitoring_run = current_time
 
-        time.sleep(10)  # Tunggu 10 detik sebelum iterasi berikutnya
+        time.sleep(10)
+
+
+@app.route("/restart_scheduler", methods=["POST"])
+def restart_scheduler():
+    thread = threading.Thread(target=run_continuous_jobs)
+    thread.daemon = True
+    thread.start()
+    return jsonify({"message": "Scheduler restarted"}), 200
 
 
 # Menjalankan Flask app
 def run_flask_app():
-    app.run(debug=True, use_reloader=False)  # use_reloader=False agar scheduler tidak jalan dua kali
+    app.run(host='0.0.0.0',debug=True, use_reloader=False)  # use_reloader=False agar scheduler tidak jalan dua kali
+
+stop_signal = False
+
+def run_continuous_jobs():
+    global stop_signal
+    stop_signal = False  # reset saat mulai
+    logger.info("Running continuous tasks in background...")
+    last_monitoring_run = 0
+
+    while not stop_signal:
+        current_time = time.time()
+
+        should_continue = scheduled_task()
+        if not should_continue:
+            logger.info("No CNOTE to process. Stopping background task loop.")
+            break
+
+        if current_time - last_monitoring_run >= 300:
+            monitoring_task()
+            last_monitoring_run = current_time
+
+        time.sleep(10)
+
+@app.route("/stop_scheduler", methods=["POST"])
+def stop_scheduler():
+    global stop_signal
+    stop_signal = True
+    return jsonify({"message": "Scheduler stop requested"}), 200
 
 
 if __name__ == "__main__":
