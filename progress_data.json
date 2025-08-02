@@ -1,13 +1,10 @@
 {
-  "total": 10,
-  "success": 10,
+  "total": 0,
+  "success": 0,
   "failed": 0,
   "status": "Selesai",
-  "batch_size": 5,
-  "total_batches": 2,
-  "current_batch": 2,
-  "logs": [
-    "\u2705 Batch 1: 5 records processed successfully",
-    "\u2705 Batch 2: 5 records processed successfully"
-  ]
+  "batch_size": 2,
+  "total_batches": 0,
+  "current_batch": 0,
+  "logs": []
 }

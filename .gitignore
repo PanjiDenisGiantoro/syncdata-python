@@ -2,3 +2,5 @@ app.log
 .env
 frontend/
 log_app/
+.env.encrypted
+.env_original

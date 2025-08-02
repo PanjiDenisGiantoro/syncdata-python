@@ -46,9 +46,9 @@ def get_cnote_numbers(job_id):
                 FROM CMS_CNOTE B,
                      REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
-                    AND TRUNC(CDATE) = TRUNC(SYSDATE) - 3
+                    AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
                   AND A.CNOTE_NO = B.CNOTE_NO(+) 
-                  FETCH FIRST 10 ROWS ONLY
+                  FETCH FIRST 10000 ROWS ONLY
                 """
         cursor.execute(query)
         cnote_numbers = [row[0] for row in cursor.fetchall()]
@@ -60,7 +60,7 @@ def get_cnote_numbers(job_id):
             save_progress(progress_data)
             return jsonify({"message": "No CNOTE numbers found."}), 404
 
-        batch_size = 5
+        batch_size = 1000
         total_records = len(cnote_numbers)
         total_batches = (total_records + batch_size - 1) // batch_size
         success_count = 0
