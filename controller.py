@@ -48,7 +48,7 @@ def get_cnote_numbers(job_id):
                 WHERE BILL_FLAG = 'N'
                     AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
                   AND A.CNOTE_NO = B.CNOTE_NO(+) 
-                  FETCH FIRST 10000 ROWS ONLY
+                  FETCH FIRST 100000 ROWS ONLY
                 """
         cursor.execute(query)
         cnote_numbers = [row[0] for row in cursor.fetchall()]
@@ -65,86 +65,81 @@ def get_cnote_numbers(job_id):
         total_batches = (total_records + batch_size - 1) // batch_size
         success_count = 0
         failed_count = 0
+        batch_group_size = 10  # Process 10 batches at once
+        batch_groups = []
+        current_batch = []
+
+        # Group batches
+        for i in range(0, total_records, batch_size):
+            batch = cnote_numbers[i:i + batch_size]
+            current_batch.append(batch)
+            if len(current_batch) >= batch_group_size or i + batch_size >= total_records:
+                batch_groups.append(current_batch)
+                current_batch = []
 
         # Initialize progress_data
         progress_data.update({
             'total': total_records,
+            'total_batches': total_batches,
+            'total_groups': len(batch_groups),
+            'current_batch': 0,
+            'current_group': 0,
             'success': 0,
             'failed': 0,
-            'status': 'Sedang Berjalan',
-            'batch_size': batch_size,
-            'total_batches': total_batches,
-            'current_batch': 0,
+            'status': 'Processing',
             'logs': []
         })
         save_progress(progress_data)
 
-        logger.info(f"Job ID {job_id}: Starting to process {total_records} CNOTE numbers in batches of {batch_size}...")
-        print(cnote_numbers)
+        logger.info(f"Job ID {job_id}: Starting to process {total_records} CNOTE numbers in {len(batch_groups)} groups")
 
         try:
-            for i in range(0, total_records, batch_size):
-                batch = cnote_numbers[i:i + batch_size]
-                batch_number = (i // batch_size) + 1
-                progress_data.update({'current_batch': batch_number})
-                progress_percent_batch = (batch_number / total_batches) * 100
-
-                logger.info(f"Job ID {job_id}: Processing batch {batch_number}/{total_batches} with {len(batch)} records")
+            for group_idx, batch_group in enumerate(batch_groups, 1):
+                progress_data.update({
+                    'current_group': group_idx,
+                    'current_batch': min(group_idx * batch_group_size, total_batches)
+                })
+                
+                group_size = sum(len(batch) for batch in batch_group)
+                logger.info(f"Job ID {job_id}: Processing group {group_idx}/{len(batch_groups)} with {len(batch_group)} batches ({group_size} records)")
 
                 try:
-                    logger.info(f"Job ID {job_id}: Running p_sync_cnote_upd_process for batch {batch_number}...")
-                    p_sync_cnote_upd_process(batch)
+                    # Process all batches in the group
+                    all_batches = [batch for batch in batch_group if batch]  # Remove any empty batches
+                    
+                    # Process p_sync_cnote_upd_process with all batches
+                    logger.info(f"Job ID {job_id}: Running p_sync_cnote_upd_process for group {group_idx}...")
+                    p_sync_cnote_upd_process(*all_batches)
 
-                    logger.info(f"Job ID {job_id}: Running p_sync_r_cnote_upd_process for batch {batch_number}...")
-                    p_sync_r_cnote_upd_process(batch)
+                    # Process p_sync_r_cnote_upd_process with all batches
+                    logger.info(f"Job ID {job_id}: Running p_sync_r_cnote_upd_process for group {group_idx}...")
+                    p_sync_r_cnote_upd_process(*all_batches)
 
+                    # # Process p_get_job_cnote_audit for all batches in the group
+                    logger.info(f"Job ID {job_id}: Running p_get_job_cnote_audit for group {group_idx}...")
+                    p_get_job_cnote_audit(*all_batches)
 
-                    logger.info(f"Job ID {job_id}: Running p_get_job_cnote_audit for batch {batch_number}...")
-                    p_get_job_cnote_audit(batch)
+                    # # Update cnote bill flag for all batches in the group
+                    logger.info(f"Job ID {job_id}: Running p_update_cnote_bill_flag for group {group_idx}...")
+                    p_update_cnote_bill_flag(*all_batches)
 
-
-                    # logger.info(f"Job ID {job_id}: Running p_count_cnote for batch {batch_number}...")
-                    # p_count_cnote(batch)
-
-                    logger.info(f"Job ID {job_id}: Running p_update_cnote_bill_flag for batch {batch_number}...")
-                    p_update_cnote_bill_flag(batch)
-
-
-                    success_count += len(batch)
+                    # Update success count for all batches in the group
+                    group_success = sum(len(batch) for batch in batch_group)
+                    success_count += group_success
                     progress_data.update({'success': success_count})
-                    progress_data['logs'].append(f"✅ Batch {batch_number}: {len(batch)} records processed successfully")
+                    progress_data['logs'].append(f"✅ Processed {len(batch_group)} batches in group {group_idx} ({group_success} records)")
                     save_progress(progress_data)
 
-                    logger.info(f"Job ID {job_id}: Successfully processed batch {batch_number}/{total_batches} "
-                                f"({progress_percent_batch:.2f}%)")
+                    print(f" CNOTE no : {all_batches}")
+                    logger.info(f"Job ID {job_id}: Successfully processed group {group_idx}/{len(batch_groups)}")
 
 
-                except Exception as batch_error:
-                    failed_count += len(batch)
-                    progress_data.update({'failed': failed_count})
-                    progress_data['logs'].append(f"❌ Batch {batch_number}: Failed - {str(batch_error)}")
+                except Exception as group_error:
+                    # If group processing fails, process each batch individually
+                    logger.error(f"Job ID {job_id}: Error in group {group_idx} processing, falling back to individual batch processing: {str(group_error)}")
+                    progress_data['logs'].append(f"❌ Error in group {group_idx} processing, falling back to individual batch processing: {str(group_error)}")
                     save_progress(progress_data)
-                    logger.error(f"Job ID {job_id}: Error in batch {batch_number}: {str(batch_error)}")
-                    continue
 
-            progress_data.update({'status': 'Selesai', 'current_batch': total_batches})
-            save_progress(progress_data)
-            logger.info(f"Job ID {job_id}: Batch processing completed. Success: {success_count}, Failed: {failed_count}")
-
-            if failed_count == 0:
-                return jsonify({
-                    "message": f"Successfully processed {success_count} CNOTE numbers in batches.",
-                    "processed": success_count,
-                    "failed": failed_count,
-                    "progress": "100%"
-                }), 200
-            else:
-                return jsonify({
-                    "message": f"Processed with some failures. Success: {success_count}, Failed: {failed_count}",
-                    "processed": success_count,
-                    "failed": failed_count,
-                    "progress": f"{(progress_data['current_batch'] / progress_data['total_batches']) * 100:.2f}%"
-                }), 207
         except Exception as e:
             logger.error(f"Job ID {job_id}: Unexpected error in batch processing: {str(e)}")
             progress_data.update({'status': 'Gagal'})
