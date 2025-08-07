@@ -42,3 +42,14 @@ def get_oracle_connection_dbrbn():
         print(f"Error while connecting to Oracle dbrbn: {e}")
         return None
 
+def get_oracle_connection_training():
+    try:
+        connection = oracledb.connect(
+            user=Config.DB_USER_TRAINING,
+            password=Config.DB_PASSWORD_TRAINING,
+            dsn=Config.DB_DSN_TRAINING
+        )
+        return connection
+    except oracledb.DatabaseError as e:
+        print(f"Error while connecting to Oracle training: {e}")
+        return None

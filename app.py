@@ -8,9 +8,9 @@ import threading
 from logger_config import logger
 import time
 import uuid  # Untuk menghasilkan ID unik
-from controller import get_cnote_numbers  # Import the route function
+from controller import get_cnote_numbers, get_update_moda ,get_flight # Import the route function
 from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today  # Import monitoring function
-from db import get_oracle_connection_billing, get_oracle_connection_dbrbn
+from db import get_oracle_connection_billing, get_oracle_connection_dbrbn, get_oracle_connection_training
 from progress_utils import load_progress
 
 # Fungsi untuk mengkonfigurasi logging dengan rotasi file setiap hari
@@ -44,7 +44,7 @@ def get_progress():
     success = progress_data.get('success', 0)
     failed = progress_data.get('failed', 0)
     status = progress_data.get('status', 'Tidak Diketahui')
-    batch_size = progress_data.get('batch_size', 1000)
+    batch_size = progress_data.get('batch_size', 500)
     
     # Calculate batch information
     total_batches = progress_data.get('total_batches', 0)
@@ -62,7 +62,11 @@ def get_progress():
         "failed": failed,
         "progress": f"{progress_percent:.2f}%",
         "batch_percent": f"{batch_percent:.2f}%",
-        "status": status
+        "status": status,
+        "batch_size": batch_size,
+        "total_batches": total_batches,
+        "current_batch": current_batch,
+        "logs": logs
     }), 200
 
 
@@ -74,6 +78,7 @@ def scheduled_task():
     try:
         with app.app_context():
             response = get_cnote_numbers(job_id)
+            # response = get_update_moda(job_id)
             # Tangani response dari get_cnote_numbers
             if isinstance(response, tuple):
                 response_data, status_code = response
@@ -105,13 +110,19 @@ def home():
 
 
 @app.route("/test_connection_billing")
-def test_connection_billing():
-    connection = get_oracle_connection_dbrbn()
+def test_connection_training():
+    connection = get_oracle_connection_training()
     if connection:
         connection.close()
         return jsonify({"message": "Connection to dbrbn successful!"}), 200
     else:
-        return jsonify({"message": "Connection to dbrbn failed!"}), 500
+        return jsonify({"message": "Connection to training failed!"}), 500
+
+@app.route("/api/flight")
+def flight():
+    job_id = str(uuid.uuid4())  # Generate unique job ID for the current request
+    get_flight(job_id)
+    return jsonify({"message": "Flight data updated successfully!"}), 200
 
 
 @app.route("/api/listdatacn", methods=["GET"])
@@ -184,6 +195,17 @@ def get_cnote_numbers_route():
         return jsonify({"message": "CNOTE numbers updated successfully!"}), 200
     except Exception as e:
         return jsonify({"message": f"Error occurred: {str(e)}"}), 500
+
+@app.route("/get_upd_moda", methods=["GET"])
+def get_update_moda_route():
+    try:
+        with app.app_context():  # Ensure we are in app context
+            job_id = str(uuid.uuid4())  # Generate unique job ID for the current request
+            get_update_moda(job_id)  # Panggil fungsi yang ada pada controller dengan job_id
+        return jsonify({"message": "update moda successfully!"}), 200
+    except Exception as e:
+        return jsonify({"message": f"Error occurred: {str(e)}"}), 500
+
 
 
 def monitoring_task():

@@ -39,28 +39,23 @@ def p_get_job_cnote_audit(*batch_groups):
     all_cnotes = [cnote for batch in batch_groups for cnote in (batch if isinstance(batch, list) else [batch])]
     if not all_cnotes:
         return {"status": "error", "message": "Tidak ada nomor CNOTE yang diberikan"}
-
     try:
         connection = get_oracle_connection_billing()
         if not connection:
             return {"status": "error", "message": "Gagal terhubung ke database"}
-
         try:
             cursor = connection.cursor()
             total_processed = 0
             total_failed = 0
-            batch_size = 1000  # Slightly below 1000 to be safe
-
+            batch_size = 500  # Slightly below 1000 to be safe
             # Process in chunks of batch_size
             for i in range(0, len(all_cnotes), batch_size):
                 batch = all_cnotes[i:i + batch_size]
                 processed, failed = process_cnote_batch(cursor, batch)
                 total_processed += processed
                 total_failed += failed
-
                 # Commit after each batch to avoid large transactions
                 connection.commit()
-
             return {
                 "status": "success" if total_failed == 0 else "partial",
                 "message": f"Berhasil memproses {total_processed} CNOTEs" +
@@ -69,7 +64,6 @@ def p_get_job_cnote_audit(*batch_groups):
                 "failed": total_failed,
                 "batches_processed": len(batch_groups)
             }
-
             # Commit any remaining transactions
             connection.commit()
 
