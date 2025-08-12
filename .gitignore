@@ -5,3 +5,4 @@ log_app/
 .env.encrypted
 .env_original
 progress_data.json
+__pycache__/*.pyc
