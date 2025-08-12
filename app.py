@@ -12,6 +12,7 @@ from controller import get_cnote_numbers, get_update_moda ,get_flight # Import t
 from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today  # Import monitoring function
 from db import get_oracle_connection_billing, get_oracle_connection_dbrbn, get_oracle_connection_training
 from progress_utils import load_progress
+from datetime import datetime
 
 # Fungsi untuk mengkonfigurasi logging dengan rotasi file setiap hari
 
@@ -72,23 +73,45 @@ def get_progress():
 
 
 # Fungsi untuk memanggil task atau API untuk mendapatkan CNOTE Numbers
-def scheduled_task():
-    job_id = str(uuid.uuid4())  # Generate unique job ID
-    logger.info(f"Scheduled task started with Job ID: {job_id}")  # Logging untuk task scheduler
+def scheduled_task(run_flight=False):
+    job_id = str(uuid.uuid4())
+    logger.info(f"Scheduled task started with Job ID: {job_id}")
     try:
         with app.app_context():
-            response = get_cnote_numbers(job_id)
-            # response = get_update_moda(job_id)
-            # Tangani response dari get_cnote_numbers
-            if isinstance(response, tuple):
-                response_data, status_code = response
-                if status_code == 404 and response_data.get_json().get("message") == "No CNOTE numbers found.":
-                    logger.info(f"Job ID {job_id}: Skipping processing due to no CNOTE numbers.")
-                    return False  # Beri sinyal untuk berhenti
-            return True  # Lanjutkan normal
+            # Proses CNOTE Numbers
+            try:
+                response = get_cnote_numbers(job_id)
+                if isinstance(response, tuple):
+                    response_data, status_code = response
+                    if (
+                        status_code == 404
+                        and response_data.get_json().get("message") == "No CNOTE numbers found."
+                    ):
+                        logger.info(f"Job ID {job_id}: Skipping CNOTE processing (no data).")
+            except Exception as e:
+                logger.error(f"Job ID {job_id}: Error in get_cnote_numbers - {str(e)}")
+
+            # Proses Flight hanya jika flag True
+            if run_flight:
+                try:
+                    flight_response = get_flight(job_id)
+                    if isinstance(flight_response, tuple):
+                        flight_data, flight_status = flight_response
+                        if (
+                            flight_status == 404
+                            and flight_data.get_json().get("message") == "No flight data found."
+                        ):
+                            logger.info(f"Job ID {job_id}: Skipping flight processing (no data).")
+                except Exception as e:
+                    logger.error(f"Job ID {job_id}: Error in get_flight - {str(e)}")
+
+        return True
+
     except Exception as e:
         logger.error(f"Error occurred while running the task: {str(e)}")
-        return True  # Tetap lanjutkan meski ada error (opsional tergantung logika kamu)
+        return True
+
+
 
 
 # Endpoint untuk memeriksa status scheduler (dummy, biar tidak error)
@@ -98,7 +121,8 @@ def scheduler_status():
         "scheduler_status": "running",
         "tasks": [
             {"name": "CNOTE Sync", "Sleep": "10 seconds"},
-            {"name": "CNOTE Monitoring", "interval": "5 minutes"}
+            {"name": "CNOTE Monitoring", "interval": "5 minutes"},
+            {"name": "Flight API", "interval": "5 minutes"}
         ]
     })
 
@@ -220,20 +244,27 @@ def monitoring_task():
         logger.error(f"Error in monitoring task: {str(e)}")
         return {"status": "error", "message": str(e)}
 
-
 def run_continuous_jobs():
     logger.info("Running continuous tasks in background...")
+
     last_monitoring_run = 0
+    last_flight_run_date = None  # Menyimpan tanggal terakhir get_flight dijalankan
 
     while True:
         current_time = time.time()
+        today_str = datetime.now().strftime("%Y-%m-%d")  # Tanggal hari ini
 
         # 🔴 Stop loop jika tidak ada data untuk diproses
-        should_continue = scheduled_task()
+        should_continue = scheduled_task(run_flight=(last_flight_run_date != today_str))
         if not should_continue:
             logger.info("No CNOTE to process. Stopping background task loop.")
             break
 
+        # Kalau hari berganti, tandai sudah jalan
+        if last_flight_run_date != today_str:
+            last_flight_run_date = today_str
+
+        # Monitoring task tiap 5 menit
         if current_time - last_monitoring_run >= 300:
             monitoring_task()
             last_monitoring_run = current_time
