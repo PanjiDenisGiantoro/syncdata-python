@@ -6,3 +6,4 @@ log_app/
 .env_original
 progress_data.json
 __pycache__/*.pyc
+__pycache__/
