@@ -13,6 +13,7 @@ from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_t
 from db import get_oracle_connection_billing, get_oracle_connection_dbrbn, get_oracle_connection_training
 from progress_utils import load_progress
 from datetime import datetime
+from scheduler import run_schedule_flight
 
 # Fungsi untuk mengkonfigurasi logging dengan rotasi file setiap hari
 
@@ -282,7 +283,7 @@ def restart_scheduler():
 
 # Menjalankan Flask app
 def run_flask_app():
-    app.run(host='0.0.0.0',debug=True, use_reloader=False)  # use_reloader=False agar scheduler tidak jalan dua kali
+    app.run(host='0.0.0.0',debug=True, use_reloader=False, port=5001)  # use_reloader=False agar scheduler tidak jalan dua kali
 
 stop_signal = False
 
@@ -318,6 +319,10 @@ if __name__ == "__main__":
     thread = threading.Thread(target=run_continuous_jobs)
     thread.daemon = True  # Pastikan thread ini berhenti saat aplikasi berhenti
     thread.start()
+
+    scheduler_thread = threading.Thread(target=run_schedule_flight)
+    scheduler_thread.daemon = True
+    scheduler_thread.start()
 
     # Menjalankan Flask app
     run_flask_app()
