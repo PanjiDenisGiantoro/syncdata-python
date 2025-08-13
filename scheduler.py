@@ -17,7 +17,7 @@ def insertFlightLog():
         with connection.cursor() as cursor:
             cursor.execute("""
             SELECT MIN(CREATED_AT)
-            FROM FLIGHT_SCHEDULE_DEV
+            FROM FLIGHT_SCHEDULE
             WHERE TRUNC(CREATED_AT) = TRUNC(SYSDATE - 7)
             """)
             target_date = cursor.fetchone()[0]
@@ -29,7 +29,7 @@ def insertFlightLog():
 
             cursor.execute("""
                 SELECT *
-                FROM FLIGHT_SCHEDULE_DEV
+                FROM FLIGHT_SCHEDULE
                 WHERE TRUNC(created_at) = TRUNC(:created_at)
             """, {"created_at": target_date})
             rows = cursor.fetchall()
@@ -58,7 +58,7 @@ def insertFlightLog():
                 connection.commit()
 
                 cursor.execute("""
-                    DELETE FROM FLIGHT_SCHEDULE_DEV
+                    DELETE FROM FLIGHT_SCHEDULE
                     WHERE TRUNC(CREATED_AT) = TRUNC(:created_at)
                 """, {"created_at": target_date})
                 connection.commit()
@@ -163,7 +163,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     select_sql = """
         SELECT COUNT(1)
-        FROM flight_schedule_dev
+        FROM FLIGHT_SCHEDULE
         WHERE flight_id_origin_iata = :flight_id_origin_iata
           AND flight_id_origin_icao = :flight_id_origin_icao
           AND departure_iata = :departure_iata
@@ -172,7 +172,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
 
     update_sql = """
-        UPDATE flight_schedule_dev
+        UPDATE FLIGHT_SCHEDULE
         SET estimate_runway_departure = :estimate_runway_departure,
             schedule_arrival = :schedule_arrival,
             estimate_runway_arrival = :estimate_runway_arrival,
@@ -188,7 +188,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
 
     insert_sql = """
-        INSERT INTO flight_schedule_dev (
+        INSERT INTO FLIGHT_SCHEDULE (
             flight_id_origin_iata,
             flight_id_origin_icao,
             departure_iata,
@@ -287,7 +287,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def run_schedule_flight():
-    schedule.every().day.at("17:00").do(insertFlightLog) #17:00 PST = 08:00 WIB
+    schedule.every().day.at("08:00").do(insertFlightLog) #17:00 PST = 08:00 WIB
 
     while True:
         schedule.run_pending()
