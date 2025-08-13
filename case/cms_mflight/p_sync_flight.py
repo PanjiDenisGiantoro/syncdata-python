@@ -27,7 +27,7 @@ def p_sync_flight(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         cursor = conn.cursor()
 
         insert_sql = """
-            INSERT INTO flight_schedule_dev (
+            INSERT INTO FLIGHT_SCHEDULE (
                 flight_id_origin_iata,
                 flight_id_origin_icao,
                 departure_iata,
