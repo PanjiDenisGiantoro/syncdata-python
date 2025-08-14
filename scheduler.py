@@ -148,8 +148,8 @@ def get_flight_data_today():
                 total_processed += processed_count
                 details.append({iata_code: processed_count})
 
-                logger.info(f"Data processed for {iata_code}. Waiting 10 seconds before next code...")
-                time.sleep(10)  # delay tiap ganti IATA code
+                logger.info(f"Data processed for {iata_code}. Waiting 60 seconds before next code...")
+                time.sleep(60)  # delay tiap ganti IATA code
                 key_index = (key_index + 1) % len(access_keys)  # ganti key untuk code berikutnya
                 break
 
@@ -157,7 +157,7 @@ def get_flight_data_today():
                 logger.error(f"Error fetching data for {iata_code} with key {access_key}: {str(e)}")
                 key_index = (key_index + 1) % len(access_keys)
                 retries += 1
-                time.sleep(10)  # delay sebelum coba key lain
+                time.sleep(60)  # delay sebelum coba key lain
 
             except Exception as e:
                 logger.error(f"Unexpected error for {iata_code}: {str(e)}")
