@@ -4,12 +4,15 @@ import oracledb
 import uuid
 import requests
 import json
+import os
+import time
 
 from datetime import datetime
 from db import get_oracle_connection_billing
 from controller import get_flight
 from typing import List, Dict, Any, Optional
 from logger_config import logger
+from itertools import islice
 
 connection = get_oracle_connection_billing()
 def insertFlightLog():
@@ -23,7 +26,7 @@ def insertFlightLog():
             target_date = cursor.fetchone()[0]
 
             if not target_date:
-                print(f"[{datetime.now()}] Tidak ada data untuk hari ke-7.")
+                print(f"[{datetime.now()}] Tidak ada data untuk hari ke-7. Mengambil data hari ini...")
                 get_flight_data_today()
                 return
 
@@ -37,6 +40,7 @@ def insertFlightLog():
             print(f"[{datetime.now()}] Insert {len(rows)} record ke FLIGHT_SCHEDULE_LOG")
 
             if rows:
+                logger.info(f"Insert {len(rows)} record ke FLIGHT_SCHEDULE_LOG")
                 cursor.executemany("""
                     INSERT INTO FLIGHT_SCHEDULE_LOG (
                         ID, FLIGHT_ID_ORIGIN_IATA, FLIGHT_ID_ORIGIN_ICAO,
@@ -62,86 +66,109 @@ def insertFlightLog():
                     WHERE TRUNC(CREATED_AT) = TRUNC(:created_at)
                 """, {"created_at": target_date})
                 connection.commit()
-
                 print(f"[{datetime.now()}] Data tanggal {target_date} dihapus dari DEV")
-
-                job_id = str(uuid.uuid4())  # Generate unique job ID for the current request
-                get_flight(job_id)
+                get_flight_data_today()
             return
 
     except Exception as e:
         print("Error insert:", e)
 
+def get_active_iata_code():
+    try:
+        with connection.cursor() as cursor:
+            # query = "SELECT DISTINCT IATA_CODE FROM MST_FLIGHT_CODE WHERE ACTIVE = 'Y'"
+            query = "SELECT DISTINCT(IATA_CODE) FROM MST_FLIGHT_CODE WHERE IATA_CODE IS NOT NULL"
+            cursor.execute(query)
+            rows = cursor.fetchall()
 
+            iata_codes = [row[0] for row in rows]
+            return iata_codes
+    except Exception as e:
+        logger.error(f"Error fetching IATA codes: {str(e)}")
+        return []
+
+def chunked(iterable, size):
+    it = iter(iterable)
+    return iter(lambda: list(islice(it, size)), [])
 
 def get_flight_data_today():
     """
     Fetches flight data from AviationStack API and processes it.
-
-    Args:
-         (str): Unique identifier for the job
-
-    Returns:
-        dict: Processing results and status
+    Rotates API keys for each IATA code.
+    Retries on 429 (Too Many Requests) with next key.
     """
-    logger.info(f"Job ID : Starting to fetch flight data...")
+    logger.info("Starting to fetch flight data...")
 
-    # API Configuration
+    iata_codes = get_active_iata_code()
+    if not iata_codes:
+        logger.warning("No active IATA codes found in the database.")
+        return {"status": "completed", "message": "No flight data available", "processed": 0}
+
+    access_keys = [os.getenv(f'ACCOUNT{i}') for i in range(1, 16)]
+    access_keys = [key for key in access_keys if key]
+    if not access_keys:
+        logger.warning("No access keys found in the environment variables.")
+        return {"status": "completed", "message": "No flight data available", "processed": 0}
+
     base_url = "https://api.aviationstack.com/v1/timetable"
-    params = {
-        'iataCode': 'CGK',
-        'type': 'departure',
-        # 'access_key': '4a75614d656449337e99fac724ffc997'
-        'access_key': 'b2e75f4982eed92a6502d1e6fa4f0984'
-    }
+    total_processed = 0
+    details = []
+    key_index = 0  # mulai dari API key pertama
 
-    try:
-        # Make API request
-        logger.info(f"Job ID : Fetching data from AviationStack API...")
-        response = requests.get(base_url, params=params)
-        response.raise_for_status()  # Raise exception for HTTP errors
-
-        # Parse JSON response
-        data = response.json()
-
-        # Check if data was returned successfully
-        if not data.get('data'):
-            logger.warning(f"Job ID : No flight data found in API response")
-            return {
-                "status": "completed",
-                "message": "No flight data available",
-                "processed": 0
+    for iata_code in iata_codes:
+        retries = 0
+        while retries < len(access_keys):  # maksimal nyoba sebanyak jumlah API key
+            access_key = access_keys[key_index]
+            params = {
+                'iataCode': iata_code,
+                'type': 'departure',
+                'access_key': access_key
             }
 
-        # Process the flight data
-        logger.info(f"Job ID : Processing {len(data['data'])} flight records...")
-        # result = p_sync_flight(data['data'])
-        result = updateOrInsert(data['data'])
+            try:
+                logger.info(f"Fetching data for IATA code {iata_code} using access key {access_key}...")
+                response = requests.get(base_url, params=params)
+                
+                if response.status_code == 429:
+                    logger.warning(f"429 Too Many Requests for key {access_key}. Switching key...")
+                    key_index = (key_index + 1) % len(access_keys)
+                    retries += 1
+                    time.sleep(10)  # delay saat ganti API key
+                    continue  # coba lagi dengan key baru
+                
+                response.raise_for_status()
+                data = response.json()
 
-        logger.info(f"Job ID : Successfully processed flight data")
-        return {
-            "status": "completed",
-            "message": "Flight data processed successfully",
-            "processed": result.get('processed', 0),
-            "details": result
-        }
+                if not data.get('data'):
+                    logger.warning(f"No data for {iata_code}")
+                    break
 
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Error fetching flight data: {str(e)}"
-        logger.error(f"Job ID : {error_msg}")
-        return {
-            "status": "error",
-            "message": error_msg,
-            "processed": 0
-        }
-    except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
-        logger.error(f"Job ID : {error_msg}")
-        return {
-            "status": "error",
-            "message": error_msg,
-            "processed": 0
-        }
+                result = updateOrInsert(data['data'])
+                processed_count = result.get('processed', 0)
+                total_processed += processed_count
+                details.append({iata_code: processed_count})
+
+                logger.info(f"Data processed for {iata_code}. Waiting 10 seconds before next code...")
+                time.sleep(10)  # delay tiap ganti IATA code
+                key_index = (key_index + 1) % len(access_keys)  # ganti key untuk code berikutnya
+                break
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching data for {iata_code} with key {access_key}: {str(e)}")
+                key_index = (key_index + 1) % len(access_keys)
+                retries += 1
+                time.sleep(10)  # delay sebelum coba key lain
+
+            except Exception as e:
+                logger.error(f"Unexpected error for {iata_code}: {str(e)}")
+                break
+
+    return {
+        "status": "completed",
+        "message": "Flight data processed",
+        "processed": total_processed,
+        "details": details
+    }
 
 
 def convert_iso_to_dt(dt_str: Optional[str]) -> Optional[datetime]:
@@ -165,15 +192,16 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         SELECT COUNT(1)
         FROM FLIGHT_SCHEDULE
         WHERE flight_id_origin_iata = :flight_id_origin_iata
-          AND flight_id_origin_icao = :flight_id_origin_icao
-          AND departure_iata = :departure_iata
-          AND arrival_iata = :arrival_iata
-          AND schedule_departure = :schedule_departure
+        AND flight_id_origin_icao = :flight_id_origin_icao
+        AND departure_iata = :departure_iata
+        AND arrival_iata = :arrival_iata
+        AND schedule_departure = :schedule_departure
     """
 
     update_sql = """
         UPDATE FLIGHT_SCHEDULE
-        SET estimate_runway_departure = :estimate_runway_departure,
+        SET schedule_departure = :schedule_departure,
+            estimate_runway_departure = :estimate_runway_departure,
             schedule_arrival = :schedule_arrival,
             estimate_runway_arrival = :estimate_runway_arrival,
             airline = :airline,
@@ -181,10 +209,9 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
             updated_at = :updated_at,
             rawdata = :rawdata
         WHERE flight_id_origin_iata = :flight_id_origin_iata
-          AND flight_id_origin_icao = :flight_id_origin_icao
-          AND departure_iata = :departure_iata
-          AND arrival_iata = :arrival_iata
-          AND schedule_departure = :schedule_departure
+        AND flight_id_origin_icao = :flight_id_origin_icao
+        AND departure_iata = :departure_iata
+        AND arrival_iata = :arrival_iata
     """
 
     insert_sql = """
@@ -221,6 +248,9 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     try:
         with connection.cursor() as cursor:
+            # get iataCode from array 0 of flight_data and on departure then iataCode
+            iataCode = flight_data[0]['departure']['iataCode']
+            logger.info(f"Fetched, now modifying table with iataCode => {iataCode}")
             for flight in flight_data:
                 flight_info = {
                     "flight_id_origin_iata": flight.get("flight", {}).get("iataNumber"),
@@ -264,7 +294,6 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
                 exists = cursor.fetchone()[0] > 0
 
                 if exists:
-                    print(f"Flight {flight_info['flight_id_origin_iata']} already exists, updating")
                     cursor.execute(update_sql, update_params)
                 else:
                     cursor.execute(insert_sql, flight_info)
@@ -287,7 +316,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def run_schedule_flight():
-    schedule.every().day.at("08:00").do(insertFlightLog) #17:00 PST = 08:00 WIB
+    schedule.every().day.at("00:10").do(insertFlightLog) #17:00 PST = 08:00 WIB
 
     while True:
         schedule.run_pending()
