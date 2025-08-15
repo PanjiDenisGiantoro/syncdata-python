@@ -143,6 +143,8 @@ def get_flight_data_today():
                     logger.warning(f"No data for {iata_code}")
                     break
 
+                countData = data['pagination']['total']
+                logger.info(f"Fetched {countData} data, now modifying table with iataCode => {iata_code}")
                 result = updateOrInsert(data['data'])
                 processed_count = result.get('processed', 0)
                 total_processed += processed_count
@@ -252,7 +254,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         with connection.cursor() as cursor:
             # get iataCode from array 0 of flight_data and on departure then iataCode
             iataCode = flight_data[0]['departure']['iataCode']
-            logger.info(f"Fetched, now modifying table with iataCode => {iataCode}")
+            
             for flight in flight_data:
                 flight_info = {
                     "flight_id_origin_iata": flight.get("flight", {}).get("iataNumber"),
