@@ -163,6 +163,8 @@ def get_flight_data_today():
                 logger.error(f"Unexpected error for {iata_code}: {str(e)}")
                 break
 
+    # logger for completion
+    logger.info("Completed fetching and processing flight schedules for each IATA code.")
     return {
         "status": "completed",
         "message": "Flight data processed",
@@ -200,8 +202,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     update_sql = """
         UPDATE FLIGHT_SCHEDULE
-        SET schedule_departure = :schedule_departure,
-            estimate_runway_departure = :estimate_runway_departure,
+        SET estimate_runway_departure = :estimate_runway_departure,
             schedule_arrival = :schedule_arrival,
             estimate_runway_arrival = :estimate_runway_arrival,
             airline = :airline,
@@ -212,6 +213,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         AND flight_id_origin_icao = :flight_id_origin_icao
         AND departure_iata = :departure_iata
         AND arrival_iata = :arrival_iata
+        AND schedule_departure = :schedule_departure
     """
 
     insert_sql = """
@@ -316,7 +318,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def run_schedule_flight():
-    schedule.every().day.at("00:10").do(insertFlightLog) #17:00 PST = 08:00 WIB
+    schedule.every().day.at("09:29").do(insertFlightLog) #17:00 PST = 08:00 WIB
 
     while True:
         schedule.run_pending()
