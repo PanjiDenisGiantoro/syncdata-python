@@ -8,7 +8,7 @@ import threading
 from logger_config import logger
 import time
 import uuid  # Untuk menghasilkan ID unik
-from controller import get_cnote_numbers, get_update_moda ,get_flight # Import the route function
+from controller import get_cnote_numbers ,get_flight # Import the route function
 from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today  # Import monitoring function
 from db import get_oracle_connection_billing, get_oracle_connection_dbrbn, get_oracle_connection_training
 from progress_utils import load_progress
@@ -218,16 +218,6 @@ def get_cnote_numbers_route():
             job_id = str(uuid.uuid4())  # Generate unique job ID for the current request
             get_cnote_numbers(job_id)  # Panggil fungsi yang ada pada controller dengan job_id
         return jsonify({"message": "CNOTE numbers updated successfully!"}), 200
-    except Exception as e:
-        return jsonify({"message": f"Error occurred: {str(e)}"}), 500
-
-@app.route("/get_upd_moda", methods=["GET"])
-def get_update_moda_route():
-    try:
-        with app.app_context():  # Ensure we are in app context
-            job_id = str(uuid.uuid4())  # Generate unique job ID for the current request
-            get_update_moda(job_id)  # Panggil fungsi yang ada pada controller dengan job_id
-        return jsonify({"message": "update moda successfully!"}), 200
     except Exception as e:
         return jsonify({"message": f"Error occurred: {str(e)}"}), 500
 
