@@ -73,6 +73,61 @@ def insertFlightLog():
     except Exception as e:
         print("Error insert:", e)
 
+def insertFlightBigIata():
+    big_iata_codes = get_big_iata_code()
+    if not big_iata_codes:
+        logger.warning("No active IATA codes found in the database.")
+        return {"status": "completed", "message": "No flight data available", "processed": 0}
+    access_keys = [os.getenv(f'ACCOUNTAIRLABS{i}') for i in range(1, 2)]
+    access_keys = [key for key in access_keys if key]
+    if not access_keys:
+        logger.warning("No access keys found in the environment variables.")
+        return {"status": "completed", "message": "No flight data available", "processed": 0}
+    
+    base_url = "https://airlabs.co/api/v9/schedules"
+    key_index = 0 
+
+    for iata_code in big_iata_codes:
+        retries = 0
+        while retries < len(access_keys):
+            access_key = access_keys[key_index]
+            params = {
+                'dep_iata': iata_code,
+                'api_key': access_key
+            }
+
+            try:
+                logger.info(f"Fetching data from Airlabs API for {iata_code} with key {access_key}")
+                response = requests.get(base_url, params=params)
+
+                response.raise_for_status() 
+                data = response.json()
+
+                if not data.get('response'):
+                    logger.warning(f"No data for {iata_code}")
+                    break
+                
+                countData = data['request']['total_items']
+                logger.info(f"Fetched {countData} data, now modifying table with iataCode => {iata_code}")
+                result = updateOrInsert(data['response'])
+
+                logger.info(f"Data processed for {iata_code}. Waiting 60 seconds before next code...")
+                time.sleep(60)
+                key_index = (key_index + 1) % len(access_keys) 
+                break
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error fetching data for {iata_code} with key {access_key}: {str(e)}")
+                key_index = (key_index + 1) % len(access_keys)
+                retries += 1
+                time.sleep(60)
+
+
+            except Exception as e:
+                logger.error(f"Error fetching data from Airlabs API: {str(e)}")
+                return {"status": "error", "message": str(e), "processed": 0}
+    logger.info("Completed fetching and processing flight schedules for each IATA code.")
+
 def get_active_iata_code():
     try:
         with connection.cursor() as cursor:
@@ -87,9 +142,26 @@ def get_active_iata_code():
         logger.error(f"Error fetching IATA codes: {str(e)}")
         return []
 
-def chunked(iterable, size):
-    it = iter(iterable)
-    return iter(lambda: list(islice(it, size)), [])
+def get_big_iata_code():
+    try:
+        with connection.cursor() as cursor:
+            query = """
+                SELECT departure_iata
+                FROM FLIGHT_SCHEDULE
+                GROUP BY departure_iata
+                ORDER BY COUNT(*) DESC
+                FETCH FIRST 15 ROWS ONLY
+            """
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            # return list of iata codes
+            return [row[0] for row in rows]
+
+    except Exception as e:
+        logger.error(f"Error fetching IATA codes: {str(e)}")
+        return []
+
 
 def get_flight_data_today():
     """
@@ -104,7 +176,7 @@ def get_flight_data_today():
         logger.warning("No active IATA codes found in the database.")
         return {"status": "completed", "message": "No flight data available", "processed": 0}
 
-    access_keys = [os.getenv(f'ACCOUNT{i}') for i in range(1, 16)]
+    access_keys = [os.getenv(f'ACCOUNT{i}') for i in range(1, 17)]
     access_keys = [key for key in access_keys if key]
     if not access_keys:
         logger.warning("No access keys found in the environment variables.")
@@ -252,25 +324,59 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     try:
         with connection.cursor() as cursor:
-            # get iataCode from array 0 of flight_data and on departure then iataCode
-            iataCode = flight_data[0]['departure']['iataCode']
-            
+            # ambil kode departure dari record pertama (untuk logging aja)
+            iataCode = (
+                flight_data[0].get("dep_iata") or  # Airlabs
+                flight_data[0].get("departure", {}).get("iataCode")  # AviationStack
+            )
+
             for flight in flight_data:
+                # Hybrid mapping: cek apakah format Airlabs atau AviationStack
+                is_airlabs = "flight_iata" in flight
+
                 flight_info = {
-                    "flight_id_origin_iata": flight.get("flight", {}).get("iataNumber"),
-                    "flight_id_origin_icao": flight.get("flight", {}).get("icaoNumber"),
-                    "departure_iata": flight.get("departure", {}).get("iataCode"),
-                    "arrival_iata": flight.get("arrival", {}).get("iataCode"),
-                    "schedule_departure": convert_iso_to_dt(flight.get("departure", {}).get("scheduledTime")),
-                    "estimate_runway_departure": convert_iso_to_dt(flight.get("departure", {}).get("estimatedRunway")),
-                    "schedule_arrival": convert_iso_to_dt(flight.get("arrival", {}).get("scheduledTime")),
-                    "estimate_runway_arrival": convert_iso_to_dt(flight.get("arrival", {}).get("estimatedRunway")),
-                    "airline": flight.get("airline", {}).get("name"),
+                    "flight_id_origin_iata": (
+                        flight.get("flight_iata") if is_airlabs
+                        else flight.get("flight", {}).get("iataNumber")
+                    ),
+                    "flight_id_origin_icao": (
+                        flight.get("flight_icao") if is_airlabs
+                        else flight.get("flight", {}).get("icaoNumber")
+                    ),
+                    "departure_iata": (
+                        flight.get("dep_iata") if is_airlabs
+                        else flight.get("departure", {}).get("iataCode")
+                    ),
+                    "arrival_iata": (
+                        flight.get("arr_iata") if is_airlabs
+                        else flight.get("arrival", {}).get("iataCode")
+                    ),
+                    "schedule_departure": convert_iso_to_dt(
+                        flight.get("dep_time") if is_airlabs
+                        else flight.get("departure", {}).get("scheduledTime")
+                    ),
+                    "estimate_runway_departure": convert_iso_to_dt(
+                        flight.get("dep_estimated") if is_airlabs
+                        else flight.get("departure", {}).get("estimatedRunway")
+                    ),
+                    "schedule_arrival": convert_iso_to_dt(
+                        flight.get("arr_time") if is_airlabs
+                        else flight.get("arrival", {}).get("scheduledTime")
+                    ),
+                    "estimate_runway_arrival": convert_iso_to_dt(
+                        flight.get("arr_estimated") if is_airlabs
+                        else flight.get("arrival", {}).get("estimatedRunway")
+                    ),
+                    "airline": (
+                        flight.get("airline_iata") if is_airlabs
+                        else flight.get("airline", {}).get("name")
+                    ),
                     "status": flight.get("status"),
                     "created_at": datetime.now(),
                     "updated_at": datetime.now(),
                     "rawdata": json.dumps(flight)
                 }
+
                 select_params = {
                     "flight_id_origin_iata": flight_info["flight_id_origin_iata"],
                     "flight_id_origin_icao": flight_info["flight_id_origin_icao"],
@@ -280,11 +386,7 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
                 }
 
                 update_params = {
-                    "flight_id_origin_iata": flight_info["flight_id_origin_iata"],
-                    "flight_id_origin_icao": flight_info["flight_id_origin_icao"],
-                    "departure_iata": flight_info["departure_iata"],
-                    "arrival_iata": flight_info["arrival_iata"],
-                    "schedule_departure": flight_info["schedule_departure"],
+                    **select_params,
                     "estimate_runway_departure": flight_info["estimate_runway_departure"],
                     "schedule_arrival": flight_info["schedule_arrival"],
                     "estimate_runway_arrival": flight_info["estimate_runway_arrival"],
@@ -298,8 +400,10 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
                 exists = cursor.fetchone()[0] > 0
 
                 if exists:
+                    print(f"Flight {flight_info['flight_id_origin_iata']} exists, updating...")
                     cursor.execute(update_sql, update_params)
                 else:
+                    print(f"Flight {flight_info['flight_id_origin_iata']} does not exist, inserting...")
                     cursor.execute(insert_sql, flight_info)
 
                 processed_count += 1
@@ -319,9 +423,10 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         }
 
 
-def run_schedule_flight():
-    schedule.every().day.at("09:29").do(insertFlightLog) #17:00 PST = 08:00 WIB
 
+def run_schedule_flight():
+    schedule.every().day.at("07:00").do(insertFlightLog) #17:00 PST = 08:00 WIB
+    schedule.every().day.at("16:00").do(insertFlightBigIata)
     while True:
         schedule.run_pending()
         time.sleep(1)
