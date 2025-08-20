@@ -1,7 +1,4 @@
-import oracledb
-from config import Config
-from case.connote_update import p_update_cnote_bill_flag
-from db import get_oracle_connection_dbrbn, get_oracle_connection_billing
+from db import get_oracle_connection_billing
 from logger_config import logger
 
 

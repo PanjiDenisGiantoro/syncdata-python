@@ -1,92 +1,19 @@
-from datetime import datetime
-from tqdm import tqdm
 from flask import jsonify
 
-from case.connote_update.p_count_cnote import p_count_cnote
 from logger_config import logger
-from progress_utils import save_progress, load_progress, clear_progress
+from progress_utils import save_progress, load_progress
 import requests
 
 # Initialize progress_data from file
 progress_data = load_progress()
-from case.cms_mflight.p_sync_flight import p_sync_flight
-from case.connote_update.p_update_cnote_bill_flag import p_update_cnote_bill_flag
-from case.connote_update.p_sync_cnote_upd_process import p_sync_cnote_upd_process
-from case.connote_update.p_sync_r_cnote_upd_process import p_sync_r_cnote_upd_process
-from case.connote_update.p_get_job_cnote_audit import p_get_job_cnote_audit
-from db import get_oracle_connection_billing, get_oracle_connection_dbrbn
-from case.connote_update.p_monitoring_data_cnote import monitoring_cnote_count_today
+from schedulers.scheduler_connote_update.p_update_cnote_bill_flag import p_update_cnote_bill_flag
+from schedulers.scheduler_connote_update.p_sync_cnote_upd_process import p_sync_cnote_upd_process
+from schedulers.scheduler_connote_update.p_sync_r_cnote_upd_process import p_sync_r_cnote_upd_process
+from schedulers.scheduler_connote_update.p_get_job_cnote_audit import p_get_job_cnote_audit
+from db import get_oracle_connection_billing
 
 progress_data = None  # Will be set by app.py
 
-
-
-def get_flight(job_id):
-    """
-    Fetches flight data from AviationStack API and processes it.
-
-    Args:
-        job_id (str): Unique identifier for the job
-
-    Returns:
-        dict: Processing results and status
-    """
-    logger.info(f"Job ID {job_id}: Starting to fetch flight data...")
-
-    # API Configuration
-    base_url = "https://api.aviationstack.com/v1/timetable"
-    params = {
-        'iataCode': 'CGK',
-        'type': 'departure',
-        'access_key': '4a75614d656449337e99fac724ffc997'
-    }
-
-    try:
-        # Make API request
-        logger.info(f"Job ID {job_id}: Fetching data from AviationStack API...")
-        response = requests.get(base_url, params=params)
-        response.raise_for_status()  # Raise exception for HTTP errors
-
-        # Parse JSON response
-        data = response.json()
-
-        # Check if data was returned successfully
-        if not data.get('data'):
-            logger.warning(f"Job ID {job_id}: No flight data found in API response")
-            return {
-                "status": "completed",
-                "message": "No flight data available",
-                "processed": 0
-            }
-
-        # Process the flight data
-        logger.info(f"Job ID {job_id}: Processing {len(data['data'])} flight records...")
-        result = p_sync_flight(data['data'])
-
-        logger.info(f"Job ID {job_id}: Successfully processed flight data")
-        return {
-            "status": "completed",
-            "message": "Flight data processed successfully",
-            "processed": result.get('processed', 0),
-            "details": result
-        }
-
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Error fetching flight data: {str(e)}"
-        logger.error(f"Job ID {job_id}: {error_msg}")
-        return {
-            "status": "error",
-            "message": error_msg,
-            "processed": 0
-        }
-    except Exception as e:
-        error_msg = f"Unexpected error: {str(e)}"
-        logger.error(f"Job ID {job_id}: {error_msg}")
-        return {
-            "status": "error",
-            "message": error_msg,
-            "processed": 0
-        }
 
 def get_cnote_numbers(job_id):
     global progress_data
@@ -113,7 +40,7 @@ def get_cnote_numbers(job_id):
                 FROM CMS_CNOTE B,
                      REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
-                    AND TRUNC(CDATE) = TRUNC(SYSDATE) - 1
+                    AND TRUNC(CDATE) = '03-AUG-2025'
                   AND A.CNOTE_NO = B.CNOTE_NO(+) 
                   FETCH FIRST 100000 ROWS ONLY
                 """

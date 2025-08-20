@@ -1,7 +1,4 @@
 import schedule
-import time
-import oracledb
-import uuid
 import requests
 import json
 import os
@@ -9,10 +6,9 @@ import time
 
 from datetime import datetime
 from db import get_oracle_connection_billing
-from controller import get_flight
+from schedulers.scheduler_connote_update.controller import get_flight
 from typing import List, Dict, Any, Optional
 from logger_config import logger
-from itertools import islice
 
 connection = get_oracle_connection_billing()
 def insertFlightLog():

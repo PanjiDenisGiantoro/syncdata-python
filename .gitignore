@@ -2,8 +2,6 @@ app.log
 .env
 frontend/
 log_app/
-.env.encrypted
-.env_original
 progress_data.json
 * .pyc
 __pycache__
