@@ -86,8 +86,13 @@ def updateOrInsert(flight_data: List[Dict[str, Any]]) -> Dict[str, Any]:
                 exists = cursor.fetchone()[0] > 0
 
                 if exists:
-                    cursor.execute(update_sql, {**flight_info})
+                    params = flight_info.copy()
+                    params.pop("created_at")  # ⬅️ remove biar nggak error
+                    print(f"Flight {flight_info['flight_id_origin_iata']} => updating...")
+                    cursor.execute(update_sql, params)
+                    # cursor.execute(update_sql, {**flight_info})
                 else:
+                    print(f"Flight {flight_info['flight_id_origin_iata']} => inserting...")
                     cursor.execute(insert_sql, flight_info)
 
                 processed_count += 1

@@ -85,8 +85,8 @@ if __name__ == "__main__":
     thread.daemon = True  # Pastikan thread ini berhenti saat aplikasi berhenti
     thread.start()
 
-    scheduler_thread = threading.Thread(target=run_schedule_flight, daemon=True)
-    scheduler_thread.start()
+    # scheduler_thread = threading.Thread(target=run_schedule_flight, daemon=True)
+    # scheduler_thread.start()
 
     # Menjalankan Flask app
     run_flask_app()

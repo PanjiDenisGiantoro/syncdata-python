@@ -16,3 +16,4 @@ dotenv==0.9.9
 coreapi==2.3.3
 flask_cors==3.0.10
 schedule==1.2.2
+celery=5.5.3
