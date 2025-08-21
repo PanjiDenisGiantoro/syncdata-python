@@ -1,5 +1,5 @@
 import os, time, requests
-from logger_config import logger
+from logger_schedule_config import logger
 from .flight_repository import get_big_iata_code
 from .flight_utils import updateOrInsert
 

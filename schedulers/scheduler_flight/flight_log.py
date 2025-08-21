@@ -1,6 +1,6 @@
 from datetime import datetime
 from db import get_oracle_connection_billing
-from logger_config import logger
+from logger_schedule_config import logger
 from .flight_fetch_aviation import get_flight_data_today
 
 connection = get_oracle_connection_billing()
