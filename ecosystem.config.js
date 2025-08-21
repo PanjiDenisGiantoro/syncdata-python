@@ -3,7 +3,7 @@ module.exports = {
         {
             name: "flight-celery-worker",
             script: "celery",
-            args: "celery_app worker -l info --pool=solo",
+            args: "-A celery_app.celery_app worker -l info --pool=solo",
             interpreter: "none",
             // restart_delay: 5000,
             // max_restarts: 10,
@@ -12,7 +12,7 @@ module.exports = {
         {
             name: "flight-celery-beat",
             script: "celery",
-            args: "celery_app beat -l info",
+            args: "-A celery_app.celery_app beat -l info",
             interpreter: "none",
             // restart_delay: 5000,
             // max_restarts: 10,
