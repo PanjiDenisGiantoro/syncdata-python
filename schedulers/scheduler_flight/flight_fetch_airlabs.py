@@ -37,7 +37,8 @@ def insertFlightBigIata():
                 countData = data['request']['total_items']
                 logger.info(f"Fetched {countData} data for IATA {iata_code}")
                 updateOrInsert(data['response'])
-
+                
+                logger.info(f"{iata_code} done. Waiting 60 seconds before next code...")
                 time.sleep(60)
                 key_index = (key_index + 1) % len(access_keys)
                 break
