@@ -48,6 +48,7 @@ def get_flight_data_today():
                 logger.info(f"Fetched {countData} data for IATA {iata_code}")
                 updateOrInsert(data['data'])
 
+                logger.info(f"{iata_code} done. Waiting 60 seconds before next code...")
                 time.sleep(60)
                 key_index = (key_index + 1) % len(access_keys)
                 break
