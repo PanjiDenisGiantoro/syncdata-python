@@ -1,4 +1,5 @@
 import os, time, requests
+import sentry_sdk
 from logger_schedule_config import logger
 from .flight_repository import get_big_iata_code
 from .flight_utils import updateOrInsert
@@ -45,12 +46,15 @@ def insertFlightBigIata():
 
             except requests.exceptions.RequestException as e:
                 logger.error(f"Error {iata_code} with key {access_key}: {str(e)}")
+                sentry_sdk.capture_exception(e)
                 key_index = (key_index + 1) % len(access_keys)
                 retries += 1
                 time.sleep(60)
 
             except Exception as e:
                 logger.error(f"Unexpected error Airlabs API: {str(e)}")
+                sentry_sdk.capture_exception(e)
                 return
 
     logger.info("Completed fetching and processing flight schedules (Airlabs).")
+    sentry_sdk.capture_message("✅Completed fetching and processing flight schedules (Airlabs).")

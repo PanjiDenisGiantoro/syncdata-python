@@ -4,6 +4,7 @@ import threading
 from logger_config import logger
 import time
 import uuid  # Untuk menghasilkan ID unik
+import sentry_config
 from schedulers.scheduler_connote_update.controller import get_cnote_numbers
 from schedulers.scheduler_flight import run_schedule_flight
 

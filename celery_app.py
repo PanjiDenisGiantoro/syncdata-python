@@ -1,6 +1,6 @@
 from celery import Celery
 from celery.schedules import crontab
-
+import sentry_config
 celery_app = Celery(
     'flight_schedule',
     broker='mongodb://localhost:27017/celery',
