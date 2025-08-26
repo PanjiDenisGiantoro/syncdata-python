@@ -19,6 +19,12 @@ module.exports = {
             interpreter: "none",
         },
         {
+            name: "sync_ctc_beat",
+            script: "celery",
+            args: "-A celery_app.celery_app beat -l info",
+            interpreter: "none",
+        },
+        {
             name: "cnote-update-schedule",
             script: "app.py",
             interpreter: "python",
