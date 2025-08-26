@@ -1,25 +1,13 @@
 module.exports = {
     apps: [
         {
-            name: "flight-celery-worker",
+            name: "celery-worker",
             script: "celery",
             args: "-A celery_app.celery_app worker -l info --pool=solo",
             interpreter: "none",
         },
         {
-            name: "flight-celery-beat",
-            script: "celery",
-            args: "-A celery_app.celery_app beat -l info",
-            interpreter: "none",
-        },
-        {
-            name: "sync_ctc",
-            script: "celery",
-            args: "-A celery_app.celery_app worker -l info --pool=solo",
-            interpreter: "none",
-        },
-        {
-            name: "sync_ctc_beat",
+            name: "celery-beat",
             script: "celery",
             args: "-A celery_app.celery_app beat -l info",
             interpreter: "none",
