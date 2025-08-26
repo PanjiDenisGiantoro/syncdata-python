@@ -5,3 +5,4 @@ log_app/
 progress_data.json
 * .pyc
 __pycache__
+node_modules/
