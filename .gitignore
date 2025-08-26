@@ -6,3 +6,7 @@ progress_data.json
 * .pyc
 __pycache__
 node_modules/
+log_schedule/*
+celerybeat-schedule
+celerybeat-schedule-wal
+celerybeat-schedule-shm
