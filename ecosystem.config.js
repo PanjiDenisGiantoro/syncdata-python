@@ -13,6 +13,12 @@ module.exports = {
             interpreter: "none",
         },
         {
+            name: "sync_ctc",
+            script: "celery",
+            args: "-A celery_app.celery_app worker -l info --pool=solo",
+            interpreter: "none",
+        },
+        {
             name: "cnote-update-schedule",
             script: "app.py",
             interpreter: "python",

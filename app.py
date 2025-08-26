@@ -1,12 +1,13 @@
 from flask_cors import CORS
 from flask import Flask, jsonify
 import threading
-from logger_config import logger
+from logger_config import logger  as logger
 import time
 import uuid  # Untuk menghasilkan ID unik
 import sentry_config
 from schedulers.scheduler_connote_update.controller import get_cnote_numbers
 from schedulers.scheduler_flight import run_schedule_flight
+from schedulers.scheduler_sync_ctc import run_schedule_sync_ctc
 
 # Fungsi untuk mengkonfigurasi logging dengan rotasi file setiap hari
 
@@ -86,8 +87,12 @@ if __name__ == "__main__":
     thread.daemon = True  # Pastikan thread ini berhenti saat aplikasi berhenti
     thread.start()
 
-    # scheduler_thread = threading.Thread(target=run_schedule_flight, daemon=True)
-    # scheduler_thread.start()
+    scheduler_thread = threading.Thread(target=run_schedule_flight, daemon=True)
+    scheduler_thread.start()
+
+    scheduler_thread = threading.Thread(target=run_schedule_sync_ctc, daemon=True)
+    scheduler_thread.start()
+
 
     # Menjalankan Flask app
     run_flask_app()
