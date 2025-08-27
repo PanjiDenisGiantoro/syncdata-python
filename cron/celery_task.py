@@ -5,7 +5,7 @@ import sentry_sdk
 from schedulers.scheduler_sync_ctc.insert_tco_tci_v2 import sync_run_ctc
 import requests
 
-@celery_app.task(name="cron.celery_task.all_flight_schedule", queue="flight")
+@celery_app.task(name="cron.celery_task.all_flight_schedule")
 def all_flight_schedule():
     try:
         insertFlightLog()
@@ -13,7 +13,7 @@ def all_flight_schedule():
         sentry_sdk.capture_exception(e)
         raise  # penting agar Celery tetap tandai task gagal
 
-@celery_app.task(name="cron.celery_task.flight_big_iata", queue="flight")
+@celery_app.task(name="cron.celery_task.flight_big_iata")
 def flight_big_iata():
     try:
         insertFlightBigIata()
@@ -21,7 +21,7 @@ def flight_big_iata():
         sentry_sdk.capture_exception(e)
         raise
 
-@celery_app.task(name="cron.celery_task.sync_ctc", queue="sync_ctc")
+@celery_app.task(name="cron.celery_task.sync_ctc")
 def sync_ctc():
     try:
         sync_run_ctc()
