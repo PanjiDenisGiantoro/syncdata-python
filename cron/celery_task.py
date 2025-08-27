@@ -13,7 +13,7 @@ def all_flight_schedule():
         sentry_sdk.capture_exception(e)
         raise  # penting agar Celery tetap tandai task gagal
 
-@celery_app.task(name="cron.celery_task.flight_big_iata")
+@celery_app.task(name="cron.celery_task.flight_big_iata", queue="default")
 def flight_big_iata():
     try:
         insertFlightBigIata()
