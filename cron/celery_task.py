@@ -21,7 +21,7 @@ def flight_big_iata():
         sentry_sdk.capture_exception(e)
         raise
 
-@celery_app.task(name="cron.celery_task.sync_ctc")
+@celery_app.task(name="cron.celery_task.sync_ctc", queue="sync_ctc")
 def sync_ctc():
     try:
         sync_run_ctc()
