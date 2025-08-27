@@ -15,11 +15,11 @@ celery_app.conf.beat_schedule = {
     },
     'insert-flight-big-iata': {
         'task': 'cron.celery_task.flight_big_iata',      # full path
-        'schedule': crontab(hour=15, minute=0)
+        'schedule': crontab(hour=15, minute=12)
     },
     'sync_ctc':{
         'task': 'cron.celery_task.sync_ctc',
-        'schedule': crontab(hour=13, minute=39)
+        'schedule': crontab(hour=15, minute=12)
     }
 }
 

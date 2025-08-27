@@ -5,7 +5,7 @@ import sentry_sdk
 from schedulers.scheduler_sync_ctc.insert_tco_tci_v2 import sync_run_ctc
 import requests
 
-@celery_app.task(name="cron.celery_task.all_flight_schedule")
+@celery_app.task(name="cron.celery_task.all_flight_schedule", queue="default")
 def all_flight_schedule():
     try:
         insertFlightLog()
