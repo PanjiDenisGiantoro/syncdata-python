@@ -3,13 +3,7 @@ module.exports = {
         {
             name: "celery-worker-flight",
             script: "celery",
-            args: "-A celery_app.celery_app worker -l info",
-            interpreter: "none",
-        },
-        {
-            name: "celery-worker-sync-ctc",
-            script: "celery",
-            args: "-A celery_app.celery_app worker -l info",
+            args: "-A celery_app.celery_app worker -l info --pool=solo",
             interpreter: "none",
         },
         {
