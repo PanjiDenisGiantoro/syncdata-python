@@ -3,13 +3,13 @@ module.exports = {
         {
             name: "celery-worker-flight",
             script: "celery",
-            args: "-A celery_app.celery_app worker -l info -Q default --concurrency=4",
+            args: "-A celery_app.celery_app worker -l info -Q flight --concurrency=4",
             interpreter: "none",
         },
         {
             name: "celery-worker-sync-ctc",
             script: "celery",
-            args: "-A celery_app.celery_app worker -l info -Q sync-ctc --concurrency=1",
+            args: "-A celery_app.celery_app worker -l info -Q sync_ctc --concurrency=1",
             interpreter: "none",
         },
         {
