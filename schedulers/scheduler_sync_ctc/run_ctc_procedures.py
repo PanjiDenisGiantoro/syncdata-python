@@ -2,12 +2,9 @@ import datetime
 import calendar
 from db import get_oracle_connection_dbrbn
 from logger_config import ctc_logger as logger
+from logger_config import day_ctc_logger as day_logger
 
 def update_tco_tci_v2():
-    """
-    Execute the JNE.CTC_UPD_TCO_TCI_V2 and P_UPDATE_COST_TRANSIT stored procedures
-    for each day in the specified date range.
-    """
     logger.info("Starting CTC sync process from 24 July - August 2025")
     
     conn = None
@@ -28,7 +25,7 @@ def update_tco_tci_v2():
             end_date = datetime.datetime(year, month, last_day)
             total_days = (end_date - start_date).days + 1
 
-            logger.info(f"Processing month: {start_date.strftime('%B %Y')} "
+            day_logger.info(f"Processing month: {start_date.strftime('%B %Y')} "
                       f"({start_date.strftime('%d %b')} - {end_date.strftime('%d %b')})")
 
             # Process each day in the date range
@@ -38,28 +35,28 @@ def update_tco_tci_v2():
                 
                 try:
                     # Execute CTC_UPD_TCO_TCI_V2 procedure with date parameter
-                    logger.debug(f"Executing JNE.CTC_UPD_TCO_TCI_V2('{date_str}')")
+                    day_logger.debug(f"Executing JNE.CTC_UPD_TCO_TCI_V2('{date_str}')")
                     cursor.callproc('JNE.CTC_UPD_TCO_TCI_V2', [date_str])
                     conn.commit()
-                    logger.info(f"Successfully executed and committed CTC_UPD_TCO_TCI_V2 for {date_str}")
+                    day_logger.info(f"Successfully executed and committed CTC_UPD_TCO_TCI_V2 for {date_str}")
                     
                     # Execute P_UPDATE_COST_TRANSIT procedure with date parameter
-                    logger.debug(f"Executing P_UPDATE_COST_TRANSIT('{date_str}')")
+                    day_logger.debug(f"Executing P_UPDATE_COST_TRANSIT('{date_str}')")
                     cursor.callproc('P_UPDATE_COST_TRANSIT', [date_str])
                     conn.commit()
-                    logger.info(f"Successfully executed and committed P_UPDATE_COST_TRANSIT for {date_str}")
+                    day_logger.info(f"Successfully executed and committed P_UPDATE_COST_TRANSIT for {date_str}")
                     
                 except Exception as e:
-                    logger.error(f"Error executing procedures for {date_str}: {str(e)}", exc_info=True)
+                    day_logger.error(f"Error executing procedures for {date_str}: {str(e)}", exc_info=True)
                     conn.rollback()
                     
                 current_date += datetime.timedelta(days=1)
 
-        logger.info("CTC procedures execution completed successfully")
+        day_logger.info("CTC procedures execution completed successfully")
         return True
         
     except Exception as e:
-        logger.critical(f"Fatal error in CTC sync process: {str(e)}", exc_info=True)
+        day_logger.critical(f"Fatal error in CTC sync process: {str(e)}", exc_info=True)
         if conn:
             conn.rollback()
         return False
@@ -68,6 +65,6 @@ def update_tco_tci_v2():
         if conn:
             try:
                 conn.close()
-                logger.info("Database connection closed")
+                day_logger.info("Database connection closed")
             except Exception as e:
-                logger.error(f"Error during connection close: {str(e)}", exc_info=True)
+                day_logger.error(f"Error during connection close: {str(e)}", exc_info=True)

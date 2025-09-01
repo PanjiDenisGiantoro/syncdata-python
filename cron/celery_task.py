@@ -28,3 +28,19 @@ def sync_ctc():
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
+
+@celery_app.task(name="cron.celery_task.update_tco_tci_v2")
+def update_tco_tci_v2():
+    try:
+        update_tco_tci_v2()
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        raise
+
+@celery_app.task(name="cron.celery_task.sync_run_ctc_day")
+def sync_run_ctc_day():
+    try:
+        sync_run_ctc_day()
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        raise
