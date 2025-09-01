@@ -51,8 +51,10 @@ logger = setup_logger('CnoteLogger', main_log_file)
 ctc_log_file = os.path.join(log_folder, f'sync_ctc_tci_tco_{date_str}.log')
 ctc_logger = setup_logger('CTCSyncLogger', ctc_log_file)
 
-# CTC Sync specific logger
 day_ctc_log_file = os.path.join(log_folder, f'day_ctc_{date_str}.log')
 day_ctc_logger = setup_logger('DayCTCSyncLogger', day_ctc_log_file)
+
+backup_log_file = os.path.join(log_folder, f'bakcup_ctc_{date_str}.log')
+backup_logger = setup_logger('bakcupLogger', day_ctc_log_file)
 
 
