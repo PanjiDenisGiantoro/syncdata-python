@@ -20,6 +20,10 @@ celery_app.conf.beat_schedule = {
     'sync_ctc':{
         'task': 'cron.celery_task.sync_ctc',
         'schedule': crontab(hour=16, minute=0)
+    },
+    'update_tco_tci_v2': {
+        'task': 'cron.celery_task.update_tco_tci_v2',
+        'schedule': crontab(hour=11, minute=15)
     }
 }
 
