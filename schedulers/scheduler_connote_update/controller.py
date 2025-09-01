@@ -40,7 +40,7 @@ def get_cnote_numbers(job_id):
                 FROM CMS_CNOTE B,
                      REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
-                    AND TRUNC(CDATE) = '03-AUG-2025'
+                    AND TRUNC(CDATE) = SYSDATE - 1
                   AND A.CNOTE_NO = B.CNOTE_NO(+) 
                   FETCH FIRST 100000 ROWS ONLY
                 """
