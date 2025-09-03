@@ -55,6 +55,9 @@ day_ctc_log_file = os.path.join(log_folder, f'day_ctc_{date_str}.log')
 day_ctc_logger = setup_logger('DayCTCSyncLogger', day_ctc_log_file)
 
 backup_log_file = os.path.join(log_folder, f'bakcup_ctc_{date_str}.log')
-backup_logger = setup_logger('bakcupLogger', day_ctc_log_file)
+backup_logger = setup_logger('bakcupLogger', backup_log_file)
+
+ctcexample_log_file = os.path.join(log_folder, f'example_ctc_{date_str}.log')
+ctcexample_logger = setup_logger('exampleLogger', ctcexample_log_file)
 
 

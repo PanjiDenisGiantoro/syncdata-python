@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
-from db import get_oracle_connection_dbrbn, get_oracle_connection_billing
+from db import get_oracle_connection_dbrbn, get_oracle_connection_ctcv2db
 from logger_config import backup_logger as logger
 
 class DatabaseBackup:
@@ -16,10 +16,8 @@ class DatabaseBackup:
 
     def get_table_connection(self, table_name):
         """Determine which database connection to use based on table name"""
-        if table_name in ['cms_cost_transit_v2', 'cms_cost_delivery_v2', 'mst_code', 'ora_user', 'mst_btbpbd']:
-            return get_oracle_connection_dbrbn()
-        elif table_name == 'ops_return_unpaid_2025':
-            return get_oracle_connection_billing()
+        if table_name in ['cms_cost_transit_v2', 'cms_cost_delivery_v2', 'mst_code', 'ora_user', 'mst_btbpbd','ops_return_unpaid_2025']:
+            return get_oracle_connection_ctcv2db()
         else:
             return None
 
@@ -130,7 +128,6 @@ class DatabaseBackup:
                 conn.close()
 
     def backup_all_tables(self, table_names):
-        """Backup multiple tables in parallel"""
         with ThreadPoolExecutor() as executor:
             list(tqdm(
                 executor.map(self.backup_table_to_csv, table_names),
@@ -140,7 +137,6 @@ class DatabaseBackup:
 
 
 def run_backup():
-    """Run backup for all specified tables"""
     tables_to_backup = [
         'cms_cost_transit_v2',
         'cms_cost_delivery_v2',

@@ -5,9 +5,12 @@ from logger_config import logger  as logger
 import time
 import uuid  # Untuk menghasilkan ID unik
 import sentry_config
+from schedulers.scheduler_backup import run_backup
+from schedulers.scheduler_backup.backup_utils import DatabaseBackup
 from schedulers.scheduler_connote_update.controller import get_cnote_numbers
 from schedulers.scheduler_flight import run_schedule_flight
 from schedulers.scheduler_sync_ctc import run_schedule_sync_ctc
+
 
 # Fungsi untuk mengkonfigurasi logging dengan rotasi file setiap hari
 
@@ -83,12 +86,15 @@ def run_continuous_jobs():
 
 if __name__ == "__main__":
     # Memulai task berulang kali di thread terpisah
-    thread = threading.Thread(target=run_continuous_jobs)
+    thread = threading.Thread(target=run_backup)
     thread.daemon = True  # Pastikan thread ini berhenti saat aplikasi berhenti
     thread.start()
 
-    scheduler_thread = threading.Thread(target=run_schedule_flight, daemon=True)
-    scheduler_thread.start()
+    # scheduler_thread = threading.Thread(target=run_schedule_flight, daemon=True)
+    # scheduler_thread.start()
+    #
+    # scheduler_thread = threading.Thread(target=DatabaseBackup, daemon=True)
+    # scheduler_thread.start()
     #
     # scheduler_thread = threading.Thread(target=run_schedule_sync_ctc, daemon=True)
     # scheduler_thread.start()

@@ -27,7 +27,7 @@ celery_app.conf.beat_schedule = {
     },
     'update_tco_tci_v2': {
         'task': 'cron.celery_task.proc_update_tco_tci_v2',
-        'schedule': crontab(hour=12, minute=9)
+        'schedule': crontab(hour=15, minute=10)
     },
     'sync_run_ctc_day': {
         'task': 'cron.celery_task.proc_sync_run_ctc_day',
@@ -36,7 +36,11 @@ celery_app.conf.beat_schedule = {
     'backup_data_ctc': {
         'task': 'cron.celery_task.backup_data_ctc',
         'schedule': crontab(hour=1, minute=0)
-    }
+    },
+    'exampletest': {
+        'task': 'cron.celery_task.exampletest',
+        'schedule': crontab(hour=15, minute=38)
+    },
 }
 
 celery_app.conf.timezone = 'Asia/Jakarta'

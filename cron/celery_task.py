@@ -2,6 +2,7 @@ from celery_app import celery_app
 from schedulers.scheduler_flight.flight_log import insertFlightLog
 from schedulers.scheduler_flight.flight_fetch_airlabs import insertFlightBigIata
 import sentry_sdk
+from schedulers.scheduler_sync_ctc.example import example
 from schedulers.scheduler_sync_ctc.insert_tco_tci_v2 import sync_run_ctc
 from schedulers.scheduler_sync_ctc.insert_tco_tci_v2 import sync_run_ctc_day
 from schedulers.scheduler_sync_ctc.run_ctc_procedures import update_tco_tci_v2
@@ -52,6 +53,14 @@ def proc_sync_run_ctc_day():
 def backup_data_ctc():
     try:
         DatabaseBackup()
+    except Exception as e:
+        sentry_sdk.capture_exception(e)
+        raise
+
+@celery_app.task(name="cron.celery_task.exampletest")
+def exampletest():
+    try:
+        example()
     except Exception as e:
         sentry_sdk.capture_exception(e)
         raise
