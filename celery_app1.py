@@ -1,0 +1,46 @@
+from celery import Celery
+from celery.schedules import crontab
+import sentry_config
+
+celery_app = Celery(
+    'flight_schedule',
+    broker='mongodb://10.18.9.237:27017/celery',
+    backend='mongodb://10.18.9.237:27017/celery',
+    include=[
+        'cron.celery_task',
+        'schedulers.scheduler_backup.backup_utils'  # Include backup tasks
+    ]
+)
+
+celery_app.conf.beat_schedule = {
+    # 'insert-flight-schedule': {
+    #     'task': 'cron.celery_task.all_flight_schedule',  # full path
+    #     'schedule': crontab(hour=7, minute=0)
+    # },
+    # 'insert-flight-big-iata': {
+    #     'task': 'cron.celery_task.flight_big_iata',      # full path
+    #     'schedule': crontab(hour=15, minute=20)
+    # },
+    # 'sync_ctc':{
+    #     'task': 'cron.celery_task.sync_ctc',
+    #     'schedule': crontab(hour=16, minute=0)
+    # },
+    # 'update_tco_tci_v2': {
+    #     'task': 'cron.celery_task.proc_update_tco_tci_v2',
+    #     'schedule': crontab(hour=15, minute=10)
+    # },
+    # 'sync_run_ctc_day': {
+    #     'task': 'cron.celery_task.proc_sync_run_ctc_day',
+    #     'schedule': crontab(hour=7, minute=30)
+    # },
+    # 'backup_data_ctc': {
+    #     'task': 'cron.celery_task.backup_data_ctc',
+    #     'schedule': crontab(hour=1, minute=0)
+    # },
+    'exampletest': {
+        'task': 'cron.celery_task.exampletest',
+        'schedule': crontab(hour=16, minute=43)
+    },
+}
+
+celery_app.conf.timezone = 'Asia/Jakarta'
