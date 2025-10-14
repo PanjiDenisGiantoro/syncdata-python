@@ -1,16 +1,55 @@
 import datetime
 import calendar
+import oracledb
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from db import get_oracle_connection_dbrbn, get_oracle_connection_ctcv2db
 from logger_config import ctc_logger as logger
 from logger_config import day_ctc_logger as day_logger
+from config import Config
+
+# Connection Pool Setup
+pool = None
+
+def get_connection_pool():
+    """Initialize and return connection pool"""
+    global pool
+    if pool is None:
+        try:
+            pool = oracledb.SessionPool(
+                user=Config.DB_USER_CTCV2,
+                password=Config.DB_PASSWORD_CTCV2,
+                dsn=Config.DB_DSN_CTCV2,
+                min=3,      # Minimum connections
+                max=8,       # Maximum connections (5 + buffer)
+                increment=2,  # Increment step
+                timeout=60,   # Connection timeout
+                retry_count=3 # Retry count
+            )
+            logger.info("Connection pool initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize connection pool: {str(e)}", exc_info=True)
+            raise
+    return pool
+
+def close_connection_pool():
+    """Close connection pool"""
+    global pool
+    if pool:
+        try:
+            pool.close()
+            pool = None
+            logger.info("Connection pool closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing connection pool: {str(e)}", exc_info=True)
 
 
 def execute_ctc_procedure(date_str):
     """Execute CTC_UPD_TCO_TCI_V2_MODA_V2 procedure for a single date"""
     conn = None
     try:
-        conn = get_oracle_connection_ctcv2db()
+        # Get connection from pool
+        pool = get_connection_pool()
+        conn = pool.acquire()
         cursor = conn.cursor()
         cursor.callproc('CTC_UPD_TCO_TCI_V2_MODA_V2', [date_str])
         conn.commit()
@@ -22,15 +61,17 @@ def execute_ctc_procedure(date_str):
             conn.rollback()
         return (date_str, False, str(e))
     finally:
-        if conn:
-            conn.close()
+        if conn and pool:
+            pool.release(conn)
 
 
 def execute_cost_transit_procedure(date_str):
     """Execute P_UPDATE_COST_TRANSIT_V2 procedure for a single date"""
     conn = None
     try:
-        conn = get_oracle_connection_ctcv2db()
+        # Get connection from pool
+        pool = get_connection_pool()
+        conn = pool.acquire()
         cursor = conn.cursor()
         cursor.callproc('P_UPDATE_COST_TRANSIT_V2', [date_str])
         conn.commit()
@@ -42,8 +83,8 @@ def execute_cost_transit_procedure(date_str):
             conn.rollback()
         return (date_str, False, str(e))
     finally:
-        if conn:
-            conn.close()
+        if conn and pool:
+            pool.release(conn)
 
 
 def execute_insert_cost_transit(date_str):
@@ -270,14 +311,20 @@ def update_btbpbd():
         return False
 
 def update_tco_tci_v2():
-    logger.info("Starting CTC sync process from Jan - Apr 2025 (20 dates per batch)")
-
     try:
         year = 2024
-        start_month = 3  # Januari
-        end_month = 3   # April
-        batch_size = 20
-        max_workers = 10
+        start_month = 3
+        end_month = 3
+        batch_size = 5
+        max_workers = 5
+        
+        # Dynamic logging message
+        month_names = {1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr", 5: "May", 6: "Jun", 7: "Jul", 8: "Aug", 9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"}
+        
+        start_month_name = month_names.get(start_month, f"Month {start_month}")
+        end_month_name = month_names.get(end_month, f"Month {end_month}")
+        
+        logger.info(f"Starting CTC sync process from {start_month_name} - {end_month_name} {year}")
 
         # Generate all dates
         all_dates = []
@@ -367,3 +414,16 @@ def update_tco_tci_v2():
     except Exception as e:
         logger.critical(f"Fatal error in CTC sync process: {str(e)}", exc_info=True)
         return False
+    finally:
+        # Cleanup connection pool
+        close_connection_pool()
+
+
+# Cleanup function untuk shutdown graceful
+def cleanup_resources():
+    """Cleanup all resources including connection pool"""
+    try:
+        close_connection_pool()
+        logger.info("All resources cleaned up successfully")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {str(e)}", exc_info=True)
