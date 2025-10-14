@@ -40,54 +40,33 @@ def get_cnote_numbers(job_id):
                 FROM CMS_CNOTE B,
                      REPJNE.CONNOTE_UPDATE A
                 WHERE BILL_FLAG = 'N'
-                     AND TRUNC(CDATE) > '01 SEP 2025'
+                     AND TRUNC(CDATE) > '21 AUG 2025'
                   AND A.CNOTE_NO = B.CNOTE_NO(+) 
                   FETCH FIRST 100000 ROWS ONLY
                 """
 
         # query = """
-            # SELECT u.cnote_no
-            # FROM cms_cnote u
-            # JOIN cms_cnote@dbrbn c 
-            # ON u.cnote_no = c.cnote_no
-            # WHERE 
-            #     u.cnote_weight           <> c.cnote_weight
-            # OR u.cnote_origin           <> c.cnote_origin
-            # OR u.cnote_destination      <> c.cnote_destination
-            # OR u.cnote_services_code          <> c.cnote_services_code
-            # OR u.cnote_insurance_value  <> c.cnote_insurance_value
-            # OR u.cnote_packing          <> c.cnote_packing
-            # OR u.cnote_additional_fee          <> c.cnote_additional_fee
-            # OR u.cnote_other_fee        <> c.cnote_other_fee
-            # OR u.cnote_amount     <> c.cnote_amount 
-            # and trunc(c.cnote_date) > '21 AUG 2025'
-            # fetch first 1000 row only
-        #         """
-
-        # query = """
-        #             SELECT CNOTE_NO
-        #             FROM cms_cnote@dbrbn
-        #             WHERE TRUNC(cnote_date) = TO_DATE('09-SEP-2025', 'DD-MON-YYYY')
-        #             AND CNOTE_NO NOT IN (
-        #                 SELECT CNOTE_NO
-        #                 FROM cms_cnote
-        #                 WHERE TRUNC(cnote_date) = TO_DATE('09-SEP-2025', 'DD-MON-YYYY')
-        #             );
-        #             """
-
-
+        #                     SELECT u.cnote_no
+        #     FROM cms_cnote u
+        #     JOIN cms_cnote@dbrbn c 
+        #     ON u.cnote_no = c.cnote_no
+        #     WHERE 
+        #         u.cnote_weight           <> c.cnote_weight
+        #     OR u.cnote_origin           <> c.cnote_origin
+        #     OR u.cnote_destination      <> c.cnote_destination
+        #     OR u.cnote_services_code          <> c.cnote_services_code
+        #     OR u.cnote_insurance_value  <> c.cnote_insurance_value
+        #     OR u.cnote_packing          <> c.cnote_packing
+        #     OR u.cnote_additional_fee          <> c.cnote_additional_fee
+        #     OR u.cnote_other_fee        <> c.cnote_other_fee
+        #     OR u.cnote_amount     <> c.cnote_amount 
+        #     and trunc(c.cnote_date) > '21 AUG 2025'
+        #     fetch first 100000 row only
+        # """
         cursor.execute(query)
         cnote_numbers = [row[0] for row in cursor.fetchall()]
         cursor.close()
 
-        # cnote_numbers = [
-        #     "0825BIEPA007410", "0825BIEPA006940", "0825BIEPA006930", "0825BIEPA006927", "0825BIEPA006891",
-        #     "0825BIEPA006880", "0825BIEPA006871", "0825BIEPA006110", "0825BIEPA008630", "0825BIEPA008623",
-        #     "0825BIEPA007480", "0825BIEPA007470", "0825BIEPA007465", "0825BIEPA007420", "0825BIEPA007051",
-        #     "0825BIEPA007040", "0825BIEPA006311", "0825BIEPA007218", "0825BIEPA007070", "0825BIEPA007060",
-        #     "0825BIEPA005030", "0825BIEPA005020", "0825BIEPA005010"
-        # ]
-    
         if len(cnote_numbers) == 0:
             logger.info(f"Job ID {job_id}: No CNOTE found for processing.")
             progress_data.update({'total': 0, 'success': 0, 'failed': 0, 'status': 'Selesai'})

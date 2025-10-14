@@ -90,8 +90,8 @@ if __name__ == "__main__":
     scheduler_thread = threading.Thread(target=run_schedule_flight, daemon=True)
     scheduler_thread.start()
 
-    scheduler_thread = threading.Thread(target=run_schedule_sync_ctc, daemon=True)
-    scheduler_thread.start()
+    # scheduler_thread = threading.Thread(target=run_schedule_sync_ctc, daemon=True)
+    # scheduler_thread.start()
 
 
     # Menjalankan Flask app
